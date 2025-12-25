@@ -31,6 +31,6 @@ base:cut(cylinder.new(config.r_base_horiz_hole, config.r_base_down):z(config.z_b
 base:cut(cylinder.new(config.r_base_vert_hole, config.h_base));
 base:cut(cylinder.new(config.r_calib_slot, config.h_base):y(-config.r_outer + config.h_calib_slot):z(config.h_base):rx(90));
 base:cut(cylinder.new(config.r_calib_slot, config.h_base):y(config.r_outer - config.h_calib_slot):z(config.h_base):rx(-90));
--- base:export_stl('base.stl')
+-- base:export_step('base.step')
 show(base:color('turquoise'))
 return { model = base:copy(), m = base:copy():scale(1e-3) }

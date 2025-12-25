@@ -50,3 +50,6 @@ qtcreator-*
 # Catkin custom files
 CATKIN_IGNORE
 .DS_Store
+
+jellycad_src/*.step
+jellycad_src/*.stl
