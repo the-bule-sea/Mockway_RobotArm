@@ -36,8 +36,8 @@ for i, deg in ipairs({ 0, 60, 120, 180, 240, 300 }) do
     flank:cut(cone.new(config.r_m3_head, 0, config.r_m3_head):pos(x4, y4, 0));
 end
 -- 侧面两个热熔螺丝孔，防止法兰松动
-flank:cut(cylinder.new(config.r_m2d3_nut, 10):rx(90):y(config.r_outer):z(config.h_flank / 2))
-flank:cut(cylinder.new(config.r_m2d3_nut, 10):rx(-90):y(-config.r_outer):z(config.h_flank / 2))
+flank:cut(cylinder.new(config.r_m2d3_nut, 6):rx(90):y(config.r_flank_outer):z(config.h_flank / 2))
+flank:cut(cylinder.new(config.r_m2d3_nut, 6):rx(-90):y(-config.r_flank_outer):z(config.h_flank / 2))
 show(flank:color('gray'))
 -- flank:export_step('flank.step')
 return { model = flank:copy(), m = flank:copy():scale(1e-3) }
