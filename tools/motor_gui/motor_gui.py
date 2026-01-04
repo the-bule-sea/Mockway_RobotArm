@@ -12,6 +12,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 import time
+import serial.tools.list_ports
 from dm_motor_driver import WitMotionUSBCAN, DMMotor, MotorType
 
 
@@ -47,6 +48,22 @@ class MotorControlGUI:
         self.update_thread = threading.Thread(target=self.update_status_loop, daemon=True)
         self.update_thread.start()
 
+    def get_available_ports(self):
+        """获取可用的串口列表"""
+        ports = serial.tools.list_ports.comports()
+        return [port.device for port in ports]
+
+    def refresh_ports(self):
+        """刷新串口列表"""
+        available_ports = self.get_available_ports()
+        self.port_combo['values'] = available_ports
+        if available_ports:
+            # 如果当前选择的串口不在列表中，选择第一个
+            if self.port_var.get() not in available_ports:
+                self.port_var.set(available_ports[0])
+        else:
+            self.port_var.set("")
+
     def create_widgets(self):
         """创建界面组件"""
 
@@ -54,14 +71,28 @@ class MotorControlGUI:
         connection_frame = ttk.LabelFrame(self.root, text="连接配置", padding=10)
         connection_frame.grid(row=0, column=0, columnspan=2, padx=10, pady=5, sticky="ew")
 
-        # 第一行：COM口和波特率
+        # 第一行：COM口选择和刷新按钮
         ttk.Label(connection_frame, text="COM口:").grid(row=0, column=0, sticky="w")
-        self.port_var = tk.StringVar(value="COM9")
-        ttk.Entry(connection_frame, textvariable=self.port_var, width=10).grid(row=0, column=1, padx=5)
+        self.port_var = tk.StringVar()
+        self.port_combo = ttk.Combobox(
+            connection_frame,
+            textvariable=self.port_var,
+            state="readonly",
+            width=10
+        )
+        self.port_combo.grid(row=0, column=1, padx=5)
 
-        ttk.Label(connection_frame, text="串口波特率:").grid(row=0, column=2, sticky="w", padx=(20, 0))
+        # 刷新按钮
+        self.refresh_btn = ttk.Button(connection_frame, text="刷新", command=self.refresh_ports, width=6)
+        self.refresh_btn.grid(row=0, column=2, padx=5)
+
+        # 波特率
+        ttk.Label(connection_frame, text="串口波特率:").grid(row=0, column=3, sticky="w", padx=(20, 0))
         self.baudrate_var = tk.StringVar(value="921600")
-        ttk.Entry(connection_frame, textvariable=self.baudrate_var, width=10).grid(row=0, column=3, padx=5)
+        ttk.Entry(connection_frame, textvariable=self.baudrate_var, width=10).grid(row=0, column=4, padx=5)
+
+        # 初始化串口列表
+        self.refresh_ports()
 
         # 第二行：电机类型选择
         ttk.Label(connection_frame, text="电机类型:").grid(row=1, column=0, sticky="w", pady=(10, 0))
@@ -256,6 +287,9 @@ class MotorControlGUI:
                     for entry in self.root.winfo_children():
                         self._disable_entry_recursive(entry, widget_var)
 
+                # 禁用刷新按钮
+                self.refresh_btn.config(state="disabled")
+
                 messagebox.showinfo("成功", f"已连接到电机\n型号: {motor_type_str}\nID: {motor_id}")
 
             except Exception as e:
@@ -293,6 +327,9 @@ class MotorControlGUI:
             for widget_var in config_vars:
                 for entry in self.root.winfo_children():
                     self._enable_entry_recursive(entry, widget_var)
+
+            # 启用刷新按钮
+            self.refresh_btn.config(state="normal")
 
             messagebox.showinfo("断开", "已断开连接")
 
