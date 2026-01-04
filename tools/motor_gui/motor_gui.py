@@ -12,7 +12,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 import time
-from dm_motor_driver import WitMotionUSBCAN, DM_J4310_Motor
+from dm_motor_driver import WitMotionUSBCAN, DM_J4310_Motor, MotorType
 
 
 class MotorControlGUI:
@@ -54,6 +54,7 @@ class MotorControlGUI:
         connection_frame = ttk.LabelFrame(self.root, text="连接配置", padding=10)
         connection_frame.grid(row=0, column=0, columnspan=2, padx=10, pady=5, sticky="ew")
 
+        # 第一行：COM口和波特率
         ttk.Label(connection_frame, text="COM口:").grid(row=0, column=0, sticky="w")
         self.port_var = tk.StringVar(value="COM9")
         ttk.Entry(connection_frame, textvariable=self.port_var, width=10).grid(row=0, column=1, padx=5)
@@ -62,8 +63,20 @@ class MotorControlGUI:
         self.baudrate_var = tk.StringVar(value="921600")
         ttk.Entry(connection_frame, textvariable=self.baudrate_var, width=10).grid(row=0, column=3, padx=5)
 
+        # 第二行：电机类型选择
+        ttk.Label(connection_frame, text="电机类型:").grid(row=1, column=0, sticky="w", pady=(10, 0))
+        self.motor_type_var = tk.StringVar(value="DM-J4310-2EC")
+        motor_type_combo = ttk.Combobox(
+            connection_frame,
+            textvariable=self.motor_type_var,
+            values=["DM-J4310-2EC", "DM4340"],
+            state="readonly",
+            width=15
+        )
+        motor_type_combo.grid(row=1, column=1, columnspan=2, padx=5, pady=(10, 0), sticky="w")
+
         self.connect_btn = ttk.Button(connection_frame, text="连接", command=self.toggle_connection)
-        self.connect_btn.grid(row=0, column=4, padx=20)
+        self.connect_btn.grid(row=1, column=3, columnspan=2, padx=20, pady=(10, 0))
 
         # ===== 电机参数配置区 =====
         param_frame = ttk.LabelFrame(self.root, text="电机参数配置", padding=10)
@@ -204,6 +217,15 @@ class MotorControlGUI:
                 motor_id = int(self.motor_id_var.get())
                 master_id = int(self.master_id_var.get())
 
+                # 获取选择的电机类型
+                motor_type_str = self.motor_type_var.get()
+                if motor_type_str == "DM-J4310-2EC":
+                    motor_type = MotorType.DM_J4310_2EC
+                elif motor_type_str == "DM4340":
+                    motor_type = MotorType.DM4340
+                else:
+                    motor_type = MotorType.DM_J4310_2EC  # 默认值
+
                 # 创建CAN适配器
                 self.can_adapter = WitMotionUSBCAN(
                     port=port,
@@ -215,25 +237,26 @@ class MotorControlGUI:
                     messagebox.showerror("错误", "无法打开USB-CAN适配器")
                     return
 
-                # 创建电机实例
+                # 创建电机实例，传入电机类型
                 self.motor = DM_J4310_Motor(
                     can_adapter=self.can_adapter,
                     motor_id=motor_id,
-                    master_id=master_id
+                    master_id=master_id,
+                    motor_type=motor_type
                 )
 
                 self.connected = True
                 self.connect_btn.config(text="断开")
                 self.enable_btn.config(state="normal")
-                self.status_label.config(text="状态: 已连接", foreground="green")
+                self.status_label.config(text=f"状态: 已连接 ({motor_type_str})", foreground="green")
 
                 # 禁用配置修改
-                config_vars = [self.port_var, self.baudrate_var, self.motor_id_var, self.master_id_var]
+                config_vars = [self.port_var, self.baudrate_var, self.motor_id_var, self.master_id_var, self.motor_type_var]
                 for widget_var in config_vars:
                     for entry in self.root.winfo_children():
                         self._disable_entry_recursive(entry, widget_var)
 
-                messagebox.showinfo("成功", "已连接到电机")
+                messagebox.showinfo("成功", f"已连接到电机\n型号: {motor_type_str}\nID: {motor_id}")
 
             except Exception as e:
                 messagebox.showerror("错误", f"连接失败: {e}")
@@ -266,7 +289,7 @@ class MotorControlGUI:
             self.move_pos_btn.config(state="disabled")
 
             # 恢复配置修改
-            config_vars = [self.port_var, self.baudrate_var, self.motor_id_var, self.master_id_var]
+            config_vars = [self.port_var, self.baudrate_var, self.motor_id_var, self.master_id_var, self.motor_type_var]
             for widget_var in config_vars:
                 for entry in self.root.winfo_children():
                     self._enable_entry_recursive(entry, widget_var)
@@ -274,16 +297,18 @@ class MotorControlGUI:
             messagebox.showinfo("断开", "已断开连接")
 
     def _disable_entry_recursive(self, widget, var):
-        """递归禁用输入框"""
-        if isinstance(widget, ttk.Entry) and widget.cget("textvariable") == str(var):
+        """递归禁用输入框和下拉框"""
+        if isinstance(widget, (ttk.Entry, ttk.Combobox)) and widget.cget("textvariable") == str(var):
             widget.config(state="disabled")
         for child in widget.winfo_children():
             self._disable_entry_recursive(child, var)
 
     def _enable_entry_recursive(self, widget, var):
-        """递归启用输入框"""
+        """递归启用输入框和下拉框"""
         if isinstance(widget, ttk.Entry) and widget.cget("textvariable") == str(var):
             widget.config(state="normal")
+        elif isinstance(widget, ttk.Combobox) and widget.cget("textvariable") == str(var):
+            widget.config(state="readonly")
         for child in widget.winfo_children():
             self._enable_entry_recursive(child, var)
 

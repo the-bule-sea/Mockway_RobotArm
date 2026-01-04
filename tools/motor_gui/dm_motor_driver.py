@@ -25,6 +25,12 @@ from enum import IntEnum
 import math
 
 
+class MotorType(IntEnum):
+    """电机型号类型"""
+    DM_J4310_2EC = 0  # DM-J4310-2EC 电机
+    DM4340 = 1        # DM4340 电机
+
+
 class MotorMode(IntEnum):
     """电机控制模式"""
     MIT = 0           # MIT模式
@@ -327,48 +333,79 @@ class WitMotionUSBCAN:
 
 class DM_J4310_Motor:
     """
-    达妙 DM-J4310-2EC 电机驱动类
-    
-    支持:
+    达妙电机驱动类（支持多种型号）
+
+    支持型号:
+    - DM-J4310-2EC
+    - DM4340
+
+    支持功能:
     - MIT控制模式
     - 位置-速度控制模式（带梯形加减速）
     - 速度控制模式
     """
-    
-    # 电机参数限制（DM-J4310-2EC）
-    P_MAX = 12.5       # 最大位置 (rad) - MIT模式
-    V_MAX = 30.0       # 最大速度 (rad/s)
-    T_MAX = 10.0       # 最大扭矩 (Nm)
-    KP_MAX = 500.0     # 最大Kp
-    KD_MAX = 5.0       # 最大Kd
-    
+
+    # 电机参数配置（根据型号不同）
+    MOTOR_PARAMS = {
+        MotorType.DM_J4310_2EC: {
+            'P_MAX': 12.5,      # 最大位置 (rad) - MIT模式
+            'V_MAX': 30.0,      # 最大速度 (rad/s)
+            'T_MAX': 10.0,      # 最大扭矩 (Nm)
+            'KP_MAX': 500.0,    # 最大Kp
+            'KD_MAX': 5.0,      # 最大Kd
+            'name': 'DM-J4310-2EC'
+        },
+        MotorType.DM4340: {
+            'P_MAX': 12.5,      # 最大位置 (rad) - MIT模式
+            'V_MAX': 30.0,      # 最大速度 (rad/s)
+            'T_MAX': 30.0,      # 最大扭矩 (Nm) - DM4340 扭矩更大
+            'KP_MAX': 500.0,    # 最大Kp
+            'KD_MAX': 5.0,      # 最大Kd
+            'name': 'DM4340'
+        }
+    }
+
     # 特殊命令
     CMD_ENABLE = bytes([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFC])
     CMD_DISABLE = bytes([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFD])
     CMD_SET_ZERO = bytes([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE])
-    
-    def __init__(self, can_adapter: WitMotionUSBCAN, motor_id: int = 1, master_id: int = 0):
+
+    def __init__(self, can_adapter: WitMotionUSBCAN, motor_id: int = 1, master_id: int = 0,
+                 motor_type: MotorType = MotorType.DM_J4310_2EC):
         """
         初始化电机
-        
+
         Args:
             can_adapter: USB-CAN适配器实例
             motor_id: 电机CAN ID (1-127)
             master_id: 主机ID，用于接收反馈帧
+            motor_type: 电机型号类型
         """
         self.can = can_adapter
         self.motor_id = motor_id
         self.master_id = master_id
+        self.motor_type = motor_type
         self.state = MotorState(motor_id=motor_id)
         self._state_lock = threading.Lock()
         self._enabled = False
-        
+
+        # 根据电机型号设置参数
+        params = self.MOTOR_PARAMS[motor_type]
+        self.P_MAX = params['P_MAX']
+        self.V_MAX = params['V_MAX']
+        self.T_MAX = params['T_MAX']
+        self.KP_MAX = params['KP_MAX']
+        self.KD_MAX = params['KD_MAX']
+        self.motor_name = params['name']
+
         # 梯形加减速参数
         self.max_acceleration = 10.0   # 最大加速度 (rad/s²)
         self.max_velocity = 10.0       # 最大速度 (rad/s)
-        
+
         # 注册接收回调
         self.can.set_rx_callback(self._on_can_frame)
+
+        print(f"初始化电机: {self.motor_name}, ID={motor_id}, T_MAX={self.T_MAX} Nm")
 
     def float_to_uint(self, x: float, x_min: float, x_max: float, bits):
         x = max(x_min, min(x, x_max))  # 限幅到 [x_min, x_max] 范围
