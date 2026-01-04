@@ -22,7 +22,7 @@ class MotorControlGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("达妙电机控制界面")
-        self.root.geometry("900x550")
+        self.root.geometry("950x580")
 
         # 变量
         self.can_adapter = None
@@ -236,25 +236,30 @@ class MotorControlGUI:
         self.current_pos_label = ttk.Label(status_frame, text="-- rad", foreground="blue", font=("Arial", 9))
         self.current_pos_label.grid(row=0, column=1, sticky="w", padx=10)
 
+        # 命令位置
+        ttk.Label(status_frame, text="命令位置:").grid(row=0, column=2, sticky="w", padx=(20, 0))
+        self.cmd_position_label = ttk.Label(status_frame, text="-- rad", foreground="purple", font=("Arial", 9))
+        self.cmd_position_label.grid(row=0, column=3, sticky="w", padx=10)
+
         # 当前速度
-        ttk.Label(status_frame, text="当前速度:").grid(row=0, column=2, sticky="w", padx=(20, 0))
+        ttk.Label(status_frame, text="当前速度:").grid(row=0, column=4, sticky="w", padx=(20, 0))
         self.velocity_label = ttk.Label(status_frame, text="-- rad/s", foreground="blue", font=("Arial", 9))
-        self.velocity_label.grid(row=0, column=3, sticky="w", padx=10)
+        self.velocity_label.grid(row=0, column=5, sticky="w", padx=10)
 
         # 命令速度
-        ttk.Label(status_frame, text="命令速度:").grid(row=0, column=4, sticky="w", padx=(20, 0))
+        ttk.Label(status_frame, text="命令速度:").grid(row=1, column=0, sticky="w", pady=(5, 0))
         self.cmd_velocity_label = ttk.Label(status_frame, text="-- rad/s", foreground="purple", font=("Arial", 9))
-        self.cmd_velocity_label.grid(row=0, column=5, sticky="w", padx=10)
+        self.cmd_velocity_label.grid(row=1, column=1, sticky="w", padx=10, pady=(5, 0))
 
         # 扭矩
-        ttk.Label(status_frame, text="扭矩:").grid(row=1, column=0, sticky="w", pady=(5, 0))
+        ttk.Label(status_frame, text="扭矩:").grid(row=1, column=2, sticky="w", padx=(20, 0), pady=(5, 0))
         self.torque_label = ttk.Label(status_frame, text="-- Nm", foreground="blue", font=("Arial", 9))
-        self.torque_label.grid(row=1, column=1, sticky="w", padx=10, pady=(5, 0))
+        self.torque_label.grid(row=1, column=3, sticky="w", padx=10, pady=(5, 0))
 
         # 温度
-        ttk.Label(status_frame, text="MOS温度:").grid(row=1, column=2, sticky="w", padx=(20, 0), pady=(5, 0))
+        ttk.Label(status_frame, text="MOS温度:").grid(row=1, column=4, sticky="w", padx=(20, 0), pady=(5, 0))
         self.temp_label = ttk.Label(status_frame, text="-- °C", foreground="blue", font=("Arial", 9))
-        self.temp_label.grid(row=1, column=3, sticky="w", padx=10, pady=(5, 0))
+        self.temp_label.grid(row=1, column=5, sticky="w", padx=10, pady=(5, 0))
 
         # 错误状态
         ttk.Label(status_frame, text="错误状态:").grid(row=2, column=0, sticky="w", pady=(5, 0))
@@ -598,9 +603,13 @@ class MotorControlGUI:
                 try:
                     state = self.motor.get_state()
 
-                    # 更新位置
+                    # 更新当前位置
                     angle_deg = state.position * 180 / 3.14159
                     self.current_pos_label.config(text=f"{state.position:.3f} rad ({angle_deg:.1f}°)")
+
+                    # 更新命令位置
+                    cmd_angle_deg = self.current_cmd_position * 180 / 3.14159
+                    self.cmd_position_label.config(text=f"{self.current_cmd_position:.3f} rad ({cmd_angle_deg:.1f}°)")
 
                     # 更新当前速度
                     self.velocity_label.config(text=f"{state.velocity:.3f} rad/s")

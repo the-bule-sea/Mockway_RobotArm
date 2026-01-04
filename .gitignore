@@ -55,3 +55,4 @@ jellycad_src/*.step
 jellycad_src/*.stl
 
 __pycache__/
+.claude/
