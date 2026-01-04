@@ -22,7 +22,7 @@ class MotorControlGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("达妙电机控制界面")
-        self.root.geometry("850x550")
+        self.root.geometry("900x550")
 
         # 变量
         self.can_adapter = None
@@ -51,15 +51,38 @@ class MotorControlGUI:
     def get_available_ports(self):
         """获取可用的串口列表"""
         ports = serial.tools.list_ports.comports()
-        return [port.device for port in ports]
+        # 返回格式：COM口 - 设备描述
+        port_list = []
+        for port in ports:
+            if port.description:
+                port_list.append(f"{port.device} - {port.description}")
+            else:
+                port_list.append(port.device)
+        return port_list
 
     def refresh_ports(self):
         """刷新串口列表"""
         available_ports = self.get_available_ports()
         self.port_combo['values'] = available_ports
+
         if available_ports:
-            # 如果当前选择的串口不在列表中，选择第一个
-            if self.port_var.get() not in available_ports:
+            # 提取当前选择的COM口号
+            current_port_str = self.port_var.get()
+            if " - " in current_port_str:
+                current_port = current_port_str.split(" - ")[0]
+            else:
+                current_port = current_port_str
+
+            # 检查当前串口是否还在列表中
+            port_found = False
+            for port_str in available_ports:
+                if port_str.startswith(current_port):
+                    self.port_var.set(port_str)
+                    port_found = True
+                    break
+
+            # 如果当前串口不在列表中，选择第一个
+            if not port_found:
                 self.port_var.set(available_ports[0])
         else:
             self.port_var.set("")
@@ -78,7 +101,7 @@ class MotorControlGUI:
             connection_frame,
             textvariable=self.port_var,
             state="readonly",
-            width=10
+            width=35
         )
         self.port_combo.grid(row=0, column=1, padx=5)
 
@@ -243,7 +266,13 @@ class MotorControlGUI:
         if not self.connected:
             # 连接
             try:
-                port = self.port_var.get()
+                # 提取COM口号（格式可能是 "COM9 - 设备描述" 或 "COM9"）
+                port_str = self.port_var.get()
+                if " - " in port_str:
+                    port = port_str.split(" - ")[0]
+                else:
+                    port = port_str
+
                 baudrate = int(self.baudrate_var.get())
                 motor_id = int(self.motor_id_var.get())
                 master_id = int(self.master_id_var.get())
