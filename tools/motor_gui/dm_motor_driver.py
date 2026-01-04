@@ -357,7 +357,7 @@ class DMMotor:
         },
         MotorType.DM4340: {
             'P_MAX': 12.5,      # 最大位置 (rad) - MIT模式
-            'V_MAX': 10.0,      # 最大速度 (rad/s) - DM4340速度较低
+            'V_MAX': 8.0,       # 最大速度 (rad/s) - DM4340速度较低
             'T_MAX': 28.0,      # 最大扭矩 (Nm) - DM4340扭矩更大
             'KP_MAX': 500.0,    # 最大Kp
             'KD_MAX': 5.0,      # 最大Kd
