@@ -331,7 +331,7 @@ class WitMotionUSBCAN:
             return False
 
 
-class DM_J4310_Motor:
+class DMMotor:
     """
     达妙电机驱动类（支持多种型号）
 
@@ -611,10 +611,10 @@ class TrapezoidalMotionController:
     可用于MIT模式下的平滑位置控制
     """
     
-    def __init__(self, motor: DM_J4310_Motor):
+    def __init__(self, motor: DMMotor):
         """
         初始化运动控制器
-        
+
         Args:
             motor: 电机实例
         """
@@ -813,7 +813,7 @@ def demo_position_control():
             return
         
         # 创建电机实例
-        motor = DM_J4310_Motor(
+        motor = DMMotor(
             can_adapter=can_adapter,
             motor_id=2,      # 电机CAN ID
             master_id=0   # 反馈帧ID（建议设置为 motor_id * 0x11）
@@ -892,7 +892,7 @@ def demo_speed_control():
             print("无法打开USB-CAN适配器")
             return
         
-        motor = DM_J4310_Motor(can_adapter, motor_id=2, master_id=0)
+        motor = DMMotor(can_adapter, motor_id=2, master_id=0)
         time.sleep(0.5)
         
         motor.enable()
@@ -946,7 +946,7 @@ def demo_mit_control():
             print("无法打开USB-CAN适配器")
             return
 
-        motor = DM_J4310_Motor(can_adapter, motor_id=2, master_id=0)
+        motor = DMMotor(can_adapter, motor_id=2, master_id=0)
         time.sleep(0.5)
 
         motor.enable()
@@ -1072,7 +1072,7 @@ def demo_enable_disable():
             print("无法打开USB-CAN适配器")
             return
 
-        motor = DM_J4310_Motor(can_adapter, motor_id=2, master_id=0)
+        motor = DMMotor(can_adapter, motor_id=2, master_id=0)
         time.sleep(0.5)
 
         while True:
@@ -1143,6 +1143,10 @@ def main():
 
     except KeyboardInterrupt:
         print("\n退出")
+
+
+# 向后兼容别名（保留旧的类名）
+DM_J4310_Motor = DMMotor
 
 
 if __name__ == "__main__":

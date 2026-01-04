@@ -12,7 +12,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 import time
-from dm_motor_driver import WitMotionUSBCAN, DM_J4310_Motor, MotorType
+from dm_motor_driver import WitMotionUSBCAN, DMMotor, MotorType
 
 
 class MotorControlGUI:
@@ -238,7 +238,7 @@ class MotorControlGUI:
                     return
 
                 # 创建电机实例，传入电机类型
-                self.motor = DM_J4310_Motor(
+                self.motor = DMMotor(
                     can_adapter=self.can_adapter,
                     motor_id=motor_id,
                     master_id=master_id,
