@@ -22,7 +22,7 @@ class MotorControlGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("达妙电机控制界面")
-        self.root.geometry("660x720")
+        self.root.geometry("660x920")
 
         # 变量
         self.can_adapter = None
@@ -41,6 +41,11 @@ class MotorControlGUI:
         self.current_cmd_position = 0.0
         self.current_cmd_velocity = 0.0
         self.control_lock = threading.Lock()  # 保护命令位置和速度
+
+        # 力矩控制变量
+        self.torque_control_active = False
+        self.target_torque = 0.0
+        self.torque_control_lock = threading.Lock()
 
         # 创建界面
         self.create_widgets()
@@ -249,9 +254,85 @@ class MotorControlGUI:
         self.motion_status_label = ttk.Label(position_frame, text="运动状态: 静止", foreground="gray")
         self.motion_status_label.grid(row=3, column=0, columnspan=2, pady=(5, 0))
 
+        # ===== 力矩控制区 =====
+        torque_frame = ttk.LabelFrame(self.root, text="力矩控制 (MIT模式 - 纯力矩输出)", padding=10)
+        torque_frame.grid(row=4, column=0, columnspan=2, padx=10, pady=5, sticky="ew")
+
+        # 使用说明
+        torque_usage_label = ttk.Label(
+            torque_frame,
+            text="使用说明：拖动滑块或输入数值设置目标力矩，点击\"启动\"开始力矩控制",
+            foreground="blue",
+            font=("Arial", 9, "italic")
+        )
+        torque_usage_label.grid(row=0, column=0, columnspan=4, pady=(0, 10))
+
+        # 力矩输入区域
+        ttk.Label(torque_frame, text="目标力矩 (Nm):", font=("Arial", 10, "bold")).grid(row=1, column=0, sticky="w", padx=(0, 10))
+
+        # 力矩输入框
+        self.torque_var = tk.StringVar(value="0.0")
+        torque_entry = ttk.Entry(torque_frame, textvariable=self.torque_var, width=10, font=("Arial", 10))
+        torque_entry.grid(row=1, column=1, padx=5)
+        torque_entry.bind("<Return>", lambda e: self.update_torque_from_entry())
+
+        # 力矩滑块
+        self.torque_scale = tk.Scale(
+            torque_frame,
+            from_=-10.0,
+            to=10.0,
+            resolution=0.1,
+            orient=tk.HORIZONTAL,
+            length=300,
+            command=self.update_torque_from_scale,
+            state="disabled"
+        )
+        self.torque_scale.grid(row=2, column=0, columnspan=4, pady=(10, 10), padx=20)
+
+        # 控制按钮区域
+        torque_button_frame = ttk.Frame(torque_frame)
+        torque_button_frame.grid(row=3, column=0, columnspan=4, pady=(5, 0))
+
+        self.start_torque_btn = ttk.Button(
+            torque_button_frame,
+            text="启动力矩控制",
+            command=self.start_torque_control,
+            state="disabled",
+            width=15
+        )
+        self.start_torque_btn.pack(side="left", padx=5)
+
+        self.stop_torque_btn = ttk.Button(
+            torque_button_frame,
+            text="停止力矩控制",
+            command=self.stop_torque_control,
+            state="disabled",
+            width=15
+        )
+        self.stop_torque_btn.pack(side="left", padx=5)
+
+        # 快速力矩按钮
+        quick_torque_frame = ttk.Frame(torque_frame)
+        quick_torque_frame.grid(row=4, column=0, columnspan=4, pady=(10, 0))
+
+        ttk.Label(quick_torque_frame, text="快速设置:", font=("Arial", 9)).pack(side="left", padx=(0, 10))
+
+        for torque_val in [-5.0, -2.0, -1.0, 0.0, 1.0, 2.0, 5.0]:
+            btn = ttk.Button(
+                quick_torque_frame,
+                text=f"{torque_val:+.1f} Nm",
+                command=lambda t=torque_val: self.set_quick_torque(t),
+                width=8
+            )
+            btn.pack(side="left", padx=2)
+
+        # 力矩控制状态显示
+        self.torque_status_label = ttk.Label(torque_frame, text="力矩控制: 未激活", foreground="gray", font=("Arial", 9))
+        self.torque_status_label.grid(row=5, column=0, columnspan=4, pady=(10, 0))
+
         # ===== 状态显示区 =====
         status_frame = ttk.LabelFrame(self.root, text="电机状态", padding=10)
-        status_frame.grid(row=4, column=0, columnspan=2, padx=10, pady=5, sticky="ew")
+        status_frame.grid(row=5, column=0, columnspan=2, padx=10, pady=5, sticky="ew")
 
         # 当前位置
         ttk.Label(status_frame, text="当前位置:").grid(row=0, column=0, sticky="w")
@@ -403,6 +484,11 @@ class MotorControlGUI:
             # 停止运动
             self.motion_active = False
 
+            # 停止力矩控制
+            with self.torque_control_lock:
+                self.torque_control_active = False
+                self.target_torque = 0.0
+
             # 停止插补线程
             self.interpolation_running = False
             if self.interpolation_thread and self.interpolation_thread.is_alive():
@@ -432,6 +518,14 @@ class MotorControlGUI:
             self.clear_error_btn.config(state="disabled")
             self.save_position_btn.config(state="disabled")
             self.goto_saved_btn.config(state="disabled")
+
+            # 禁用力矩控制按钮和重置界面
+            self.start_torque_btn.config(state="disabled")
+            self.stop_torque_btn.config(state="disabled")
+            self.torque_scale.config(state="disabled")
+            self.torque_status_label.config(text="力矩控制: 未激活", foreground="gray")
+            self.torque_var.set("0.0")
+            self.torque_scale.set(0.0)
 
             # 恢复配置修改
             config_vars = [self.port_var, self.baudrate_var, self.motor_id_var, self.master_id_var, self.motor_type_var]
@@ -496,11 +590,23 @@ class MotorControlGUI:
             if self.saved_position is not None:
                 self.goto_saved_btn.config(state="normal")
 
+            # 启用力矩控制按钮
+            self.start_torque_btn.config(state="normal")
+
+            # 根据电机类型更新力矩滑块范围
+            if self.motor:
+                self.torque_scale.config(from_=-self.motor.T_MAX, to=self.motor.T_MAX)
+
             messagebox.showinfo("成功", f"电机已使能\n当前位置: {state.position:.3f} rad")
         else:
             # 失能
             # 停止运动
             self.motion_active = False
+
+            # 停止力矩控制
+            with self.torque_control_lock:
+                self.torque_control_active = False
+                self.target_torque = 0.0
 
             self.motor.disable()
 
@@ -518,6 +624,12 @@ class MotorControlGUI:
             # 禁用位置保存相关按钮
             self.save_position_btn.config(state="disabled")
             self.goto_saved_btn.config(state="disabled")
+
+            # 禁用力矩控制按钮
+            self.start_torque_btn.config(state="disabled")
+            self.stop_torque_btn.config(state="disabled")
+            self.torque_scale.config(state="disabled")
+            self.torque_status_label.config(text="力矩控制: 未激活", foreground="gray")
 
     def set_zero_position(self):
         """设置当前位置为零点"""
@@ -653,6 +765,96 @@ class MotorControlGUI:
         angle_deg = stop_position * 180 / 3.14159
         self.target_position_label.config(text=f"{stop_position:.2f} rad ({angle_deg:.1f}°) [减速]")
 
+    def update_torque_from_scale(self, value):
+        """从滑块更新力矩值"""
+        torque = float(value)
+        self.torque_var.set(f"{torque:.1f}")
+        if self.torque_control_active:
+            with self.torque_control_lock:
+                self.target_torque = torque
+
+    def update_torque_from_entry(self):
+        """从输入框更新力矩值"""
+        try:
+            torque = float(self.torque_var.get())
+            # 根据电机类型限制力矩范围
+            if self.motor:
+                torque = max(-self.motor.T_MAX, min(self.motor.T_MAX, torque))
+            else:
+                torque = max(-10.0, min(10.0, torque))
+
+            self.torque_var.set(f"{torque:.1f}")
+            self.torque_scale.set(torque)
+
+            if self.torque_control_active:
+                with self.torque_control_lock:
+                    self.target_torque = torque
+        except ValueError:
+            messagebox.showerror("错误", "请输入有效的数值")
+
+    def set_quick_torque(self, torque):
+        """快速设置力矩值"""
+        self.torque_var.set(f"{torque:.1f}")
+        self.torque_scale.set(torque)
+        if self.torque_control_active:
+            with self.torque_control_lock:
+                self.target_torque = torque
+
+    def start_torque_control(self):
+        """启动力矩控制"""
+        if not self.enabled or not self.motor:
+            messagebox.showwarning("警告", "请先使能电机")
+            return
+
+        # 停止位置控制
+        self.motion_active = False
+
+        try:
+            torque = float(self.torque_var.get())
+            # 根据电机类型限制力矩范围
+            torque = max(-self.motor.T_MAX, min(self.motor.T_MAX, torque))
+
+            with self.torque_control_lock:
+                self.target_torque = torque
+                self.torque_control_active = True
+
+            # 更新界面状态
+            self.torque_status_label.config(text=f"力矩控制: 激活 (目标: {torque:.1f} Nm)", foreground="green")
+            self.start_torque_btn.config(state="disabled")
+            self.stop_torque_btn.config(state="normal")
+            self.torque_scale.config(state="normal")
+
+            # 禁用位置控制按钮
+            self.move_neg_btn.config(state="disabled")
+            self.move_pos_btn.config(state="disabled")
+
+            messagebox.showinfo("成功", f"力矩控制已启动\n目标力矩: {torque:.1f} Nm")
+
+        except ValueError:
+            messagebox.showerror("错误", "请输入有效的力矩值")
+
+    def stop_torque_control(self):
+        """停止力矩控制"""
+        with self.torque_control_lock:
+            self.torque_control_active = False
+            self.target_torque = 0.0
+
+        # 更新界面状态
+        self.torque_status_label.config(text="力矩控制: 未激活", foreground="gray")
+        self.start_torque_btn.config(state="normal")
+        self.stop_torque_btn.config(state="disabled")
+
+        # 恢复位置控制按钮
+        if self.enabled:
+            self.move_neg_btn.config(state="normal")
+            self.move_pos_btn.config(state="normal")
+
+        # 设置力矩为0
+        self.torque_var.set("0.0")
+        self.torque_scale.set(0.0)
+
+        messagebox.showinfo("提示", "力矩控制已停止")
+
     def _interpolation_loop(self):
         """插补线程 - 持续发送MIT控制帧"""
         # 控制参数
@@ -684,6 +886,11 @@ class MotorControlGUI:
                 target_pos = self.target_position
                 cmd_pos = self.current_cmd_position
                 cmd_vel = self.current_cmd_velocity
+
+            # 读取力矩控制状态
+            with self.torque_control_lock:
+                torque_control_active = self.torque_control_active
+                target_torque = self.target_torque
 
             # 在锁外进行计算（不阻塞GUI线程）
             # 未使能时：命令位置跟随反馈位置
@@ -767,13 +974,27 @@ class MotorControlGUI:
                     self.motion_status_label.config(text="运动状态: 匀速中", foreground="blue")
 
             # 发送MIT控制命令
-            self.motor.control_mit(
-                p_des=new_cmd_pos,
-                v_des=new_cmd_vel,
-                kp=kp,
-                kd=kd,
-                t_ff=0.0
-            )
+            # 力矩控制模式：kp=0, kd=0, 使用 t_ff
+            # 位置控制模式：使用 kp, kd, t_ff=0
+            if torque_control_active and enabled:
+                # 纯力矩控制模式
+                state = self.motor.get_state()
+                self.motor.control_mit(
+                    p_des=state.position,  # 当前位置
+                    v_des=0.0,              # 速度为0
+                    kp=0.0,                 # 位置增益为0
+                    kd=0.0,                 # 速度增益为0
+                    t_ff=target_torque      # 前馈力矩
+                )
+            else:
+                # 位置控制模式
+                self.motor.control_mit(
+                    p_des=new_cmd_pos,
+                    v_des=new_cmd_vel,
+                    kp=kp,
+                    kd=kd,
+                    t_ff=0.0
+                )
 
             # 控制周期
             elapsed = time.time() - start_time
