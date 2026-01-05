@@ -728,72 +728,103 @@ class MotorControlGUI:
                 max_velocity = 8.0
                 max_acceleration = 15.0
 
+            # 快速读取共享变量（最小化锁持有时间）
             with self.control_lock:
-                # 未使能时：命令位置跟随反馈位置
-                if not self.enabled:
-                    state = self.motor.get_state()
-                    self.current_cmd_position = state.position
-                    self.current_cmd_velocity = 0.0
-                    self.motion_active = False
+                enabled = self.enabled
+                motion_active = self.motion_active
+                target_pos = self.target_position
+                cmd_pos = self.current_cmd_position
+                cmd_vel = self.current_cmd_velocity
 
-                # 使能后：根据运动状态计算命令位置和速度
-                else:
-                    if self.motion_active:
-                        # 运动模式：梯形加减速控制
-                        target_pos = self.target_position
+            # 在锁外进行计算（不阻塞GUI线程）
+            # 未使能时：命令位置跟随反馈位置
+            if not enabled:
+                state = self.motor.get_state()
+                new_cmd_pos = state.position
+                new_cmd_vel = 0.0
+                new_motion_active = False
+                motion_status = "idle"
 
-                        # 计算位置误差
-                        position_error = target_pos - self.current_cmd_position
+            # 使能后：根据运动状态计算命令位置和速度
+            else:
+                if motion_active:
+                    # 运动模式：梯形加减速控制
+                    # 计算位置误差
+                    position_error = target_pos - cmd_pos
 
-                        # 检查是否到达目标
-                        if abs(position_error) < 0.001 and abs(self.current_cmd_velocity) < 0.01:
-                            self.current_cmd_velocity = 0.0
-                            self.motion_active = False
-                            self.motion_status_label.config(text="运动状态: 静止", foreground="gray")
-                            print(f"到达目标位置: {target_pos:.4f} rad")
-                        else:
-                            # 计算减速距离
-                            decel_distance = (self.current_cmd_velocity ** 2) / (2 * max_acceleration)
-
-                            # 判断运动方向
-                            direction = 1 if position_error > 0 else -1
-
-                            # 判断是否需要减速
-                            if abs(position_error) <= decel_distance + 0.01:
-                                # 减速阶段
-                                if abs(self.current_cmd_velocity) > 0.01:
-                                    self.current_cmd_velocity -= direction * max_acceleration * dt
-                                    # 速度方向修正
-                                    if direction > 0 and self.current_cmd_velocity < 0:
-                                        self.current_cmd_velocity = 0
-                                    elif direction < 0 and self.current_cmd_velocity > 0:
-                                        self.current_cmd_velocity = 0
-                                self.motion_status_label.config(text="运动状态: 减速中", foreground="orange")
-                            else:
-                                # 加速或匀速阶段
-                                if abs(self.current_cmd_velocity) < max_velocity:
-                                    self.current_cmd_velocity += direction * max_acceleration * dt
-                                    # 限制最大速度
-                                    if abs(self.current_cmd_velocity) > max_velocity:
-                                        self.current_cmd_velocity = direction * max_velocity
-                                    self.motion_status_label.config(text="运动状态: 加速中", foreground="green")
-                                else:
-                                    self.motion_status_label.config(text="运动状态: 匀速中", foreground="blue")
-
-                            # 更新命令位置
-                            self.current_cmd_position += self.current_cmd_velocity * dt
+                    # 检查是否到达目标
+                    if abs(position_error) < 0.001 and abs(cmd_vel) < 0.01:
+                        new_cmd_vel = 0.0
+                        new_cmd_pos = cmd_pos
+                        new_motion_active = False
+                        motion_status = "stopped"
+                        print(f"到达目标位置: {target_pos:.4f} rad")
                     else:
-                        # 非运动模式：保持当前位置
-                        self.current_cmd_velocity = 0.0
+                        # 计算减速距离
+                        decel_distance = (cmd_vel ** 2) / (2 * max_acceleration)
 
-                # 发送MIT控制命令
-                self.motor.control_mit(
-                    p_des=self.current_cmd_position,
-                    v_des=self.current_cmd_velocity,
-                    kp=kp,
-                    kd=kd,
-                    t_ff=0.0
-                )
+                        # 判断运动方向
+                        direction = 1 if position_error > 0 else -1
+
+                        # 判断是否需要减速
+                        if abs(position_error) <= decel_distance + 0.01:
+                            # 减速阶段
+                            new_cmd_vel = cmd_vel
+                            if abs(cmd_vel) > 0.01:
+                                new_cmd_vel -= direction * max_acceleration * dt
+                                # 速度方向修正
+                                if direction > 0 and new_cmd_vel < 0:
+                                    new_cmd_vel = 0
+                                elif direction < 0 and new_cmd_vel > 0:
+                                    new_cmd_vel = 0
+                            motion_status = "decel"
+                        else:
+                            # 加速或匀速阶段
+                            new_cmd_vel = cmd_vel
+                            if abs(cmd_vel) < max_velocity:
+                                new_cmd_vel += direction * max_acceleration * dt
+                                # 限制最大速度
+                                if abs(new_cmd_vel) > max_velocity:
+                                    new_cmd_vel = direction * max_velocity
+                                motion_status = "accel"
+                            else:
+                                motion_status = "cruise"
+
+                        # 更新命令位置
+                        new_cmd_pos = cmd_pos + new_cmd_vel * dt
+                        new_motion_active = True
+                else:
+                    # 非运动模式：保持当前位置
+                    new_cmd_pos = cmd_pos
+                    new_cmd_vel = 0.0
+                    new_motion_active = False
+                    motion_status = "idle"
+
+            # 快速写回共享变量
+            with self.control_lock:
+                self.current_cmd_position = new_cmd_pos
+                self.current_cmd_velocity = new_cmd_vel
+                self.motion_active = new_motion_active
+
+            # 更新运动状态显示（在锁外）
+            if enabled:
+                if motion_status == "idle" or motion_status == "stopped":
+                    self.motion_status_label.config(text="运动状态: 静止", foreground="gray")
+                elif motion_status == "decel":
+                    self.motion_status_label.config(text="运动状态: 减速中", foreground="orange")
+                elif motion_status == "accel":
+                    self.motion_status_label.config(text="运动状态: 加速中", foreground="green")
+                elif motion_status == "cruise":
+                    self.motion_status_label.config(text="运动状态: 匀速中", foreground="blue")
+
+            # 发送MIT控制命令
+            self.motor.control_mit(
+                p_des=new_cmd_pos,
+                v_des=new_cmd_vel,
+                kp=kp,
+                kd=kd,
+                t_ff=0.0
+            )
 
             # 控制周期
             elapsed = time.time() - start_time
