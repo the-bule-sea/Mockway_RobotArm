@@ -821,31 +821,28 @@ class MotorControlGUI:
                             self.enable_btn.config(text="使能电机")
                             self.status_label.config(text="状态: 已连接", foreground="green")
 
-                    # 只在使能时更新位置速度等数据
-                    if self.enabled:
-                        # 更新当前位置
-                        angle_deg = state.position * 180 / 3.14159
-                        self.current_pos_label.config(text=f"{state.position:.3f} rad ({angle_deg:.1f}°)")
+                    # 更新电机实际状态（不论是否使能都显示）
+                    # 更新当前位置
+                    angle_deg = state.position * 180 / 3.14159
+                    self.current_pos_label.config(text=f"{state.position:.3f} rad ({angle_deg:.1f}°)")
 
-                        # 更新命令位置和速度（线程安全）
-                        with self.control_lock:
-                            cmd_pos = self.current_cmd_position
-                            cmd_vel = self.current_cmd_velocity
+                    # 更新当前速度
+                    self.velocity_label.config(text=f"{state.velocity:.3f} rad/s")
 
-                        cmd_angle_deg = cmd_pos * 180 / 3.14159
-                        self.cmd_position_label.config(text=f"{cmd_pos:.3f} rad ({cmd_angle_deg:.1f}°)")
+                    # 更新扭矩
+                    self.torque_label.config(text=f"{state.torque:.3f} Nm")
 
-                        # 更新当前速度
-                        self.velocity_label.config(text=f"{state.velocity:.3f} rad/s")
+                    # 更新温度
+                    self.temp_label.config(text=f"{state.temperature_mos} °C")
 
-                        # 更新命令速度
-                        self.cmd_velocity_label.config(text=f"{cmd_vel:.3f} rad/s")
+                    # 更新命令位置和速度（线程安全）
+                    with self.control_lock:
+                        cmd_pos = self.current_cmd_position
+                        cmd_vel = self.current_cmd_velocity
 
-                        # 更新扭矩
-                        self.torque_label.config(text=f"{state.torque:.3f} Nm")
-
-                        # 更新温度
-                        self.temp_label.config(text=f"{state.temperature_mos} °C")
+                    cmd_angle_deg = cmd_pos * 180 / 3.14159
+                    self.cmd_position_label.config(text=f"{cmd_pos:.3f} rad ({cmd_angle_deg:.1f}°)")
+                    self.cmd_velocity_label.config(text=f"{cmd_vel:.3f} rad/s")
 
                     # 更新错误状态（不论是否使能都显示）
                     if state.error.value == 0:
