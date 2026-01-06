@@ -27,4 +27,4 @@ link2:cut(cylinder.new(config.r_arm_in, height))
 -- link2:show()
 -- link1:export_step('link1.step')
 -- link2:export_step('link2.step')
--- return { model = link:copy(), m1 = link1:copy():scale(1e-3), m2 = link2:copy():scale(1e-3)}
+return { m1 = link1:copy():scale(1e-3), m2 = link2:copy():scale(1e-3)}
