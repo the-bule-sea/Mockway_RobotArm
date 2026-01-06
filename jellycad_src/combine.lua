@@ -48,12 +48,16 @@ local upperarm = {}
 upperarm[1] = shell.m:copy():rot(180, -90, 0)
     :x((config.r_outer + config.h_flank + config.h_flank_reserve) * 1e-3)
     :z((config.h_base + config.h_flank_reserve + config.r_outer) * 1e-3):show()
-upperarm[2] = shell.m:copy():rot(0, 90, 0)
-    :x((config.r_outer + config.h_flank + config.h_flank_reserve) * 1e-3)
-    :z((config.h_base + config.h_flank_reserve + 2 * config.r_outer + config.h_upper_arm + config.h_flank) * 1e-3):show()
-upperarm[3] = motor4340:copy():rot(180, -90, 0)
+upperarm[2] = motor4340:copy():rot(180, -90, 0)
     :x((config.r_outer + config.h_flank + config.h_flank_reserve + config.thickness) * 1e-3)
     :z((config.h_base + config.h_flank_reserve + config.r_outer) * 1e-3):show()
+
+upperarm[3] = shell.m:copy():rot(0, 90, 0)
+    :x((config.r_outer + config.h_flank + config.h_flank_reserve) * 1e-3)
+    :z((config.h_base + config.h_flank_reserve + 2 * config.r_outer + config.h_upper_arm + config.h_flank) * 1e-3):show()
+upperarm[4] = motor4340:copy():rot(0, 90, 0)
+    :x((config.r_outer + config.h_flank + config.h_flank_reserve + config.thickness) * 1e-3)
+    :z((config.h_base + config.h_flank_reserve + 2 * config.r_outer + config.h_upper_arm + config.h_flank) * 1e-3):show()
 
 for _, arr in ipairs({ base_link, shoulder }) do
     for _, value in ipairs(arr) do
@@ -62,6 +66,6 @@ for _, arr in ipairs({ base_link, shoulder }) do
 end
 
 local linkage = require('linkage')
-upperarm[4] = linkage.m1:copy()
+upperarm[5] = linkage.m1:copy()
     :x((2 * config.r_outer + config.h_flank + config.h_flank_reserve) * 1e-3)
     :z((config.h_base + config.h_flank_reserve + 2 * config.r_outer) * 1e-3):show()
