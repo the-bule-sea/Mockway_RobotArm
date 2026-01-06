@@ -32,35 +32,41 @@ upperarm:color('#FFC1C1'):show()
 
 local base_link = {}
 local shoulder = {}
-base_link[1] = base.m:copy()
-base_link[2] = flank.m:copy():z((config.h_base - config.h_flank) * 1e-3)
+
+local m_base = base.m:copy():mass(78 * 1e-3)
+local m_flank = flank.m:copy():mass((12 + 4 + 3) * 1e-3)
+local m_shell = shell.m:copy():mass((55 + 2) * 1e-3)
+local m1_linkage = linkage.m1:copy():mass((55 + 2) * 1e-3)
+
+base_link[1] = m_base:copy()
+base_link[2] = m_flank:copy():z((config.h_base - config.h_flank) * 1e-3)
 for i = 1, #base_link do
     base_link[i]:color('#6495ED')
 end
-shoulder[1] = shell.m:copy():z((config.h_base + config.h_flank_reserve) * 1e-3):rz(-90)
+shoulder[1] = m_shell:copy():z((config.h_base + config.h_flank_reserve) * 1e-3):rz(-90)
 shoulder[2] = motor4310:copy():z((config.h_base + config.h_flank_reserve + config.thickness) * 1e-3)
-shoulder[3] = flank.m:copy():rot(90, 0, 0):y((-config.r_outer) * 1e-3)
+shoulder[3] = m_flank:copy():rot(90, 0, 0):y((-config.r_outer) * 1e-3)
     :z((config.h_base + config.h_flank_reserve + config.r_outer) * 1e-3)
 for i = 1, #shoulder do
     shoulder[i]:color('#8470FF')
 end
 
 local upperarm = {}
-upperarm[1] = shell.m:copy():rot(180, -90, -90)
+upperarm[1] = m_shell:copy():rot(180, -90, -90)
     :y(-(config.r_outer + config.h_flank + config.h_flank_reserve) * 1e-3)
     :z((config.h_base + config.h_flank_reserve + config.r_outer) * 1e-3)
 upperarm[2] = motor4340:copy():rot(180, -90, -90)
     :y(-(config.r_outer + config.h_flank + config.h_flank_reserve + config.thickness) * 1e-3)
     :z((config.h_base + config.h_flank_reserve + config.r_outer) * 1e-3)
 
-upperarm[3] = shell.m:copy():rot(0, 90, -90)
+upperarm[3] = m_shell:copy():rot(0, 90, -90)
     :y(-(config.r_outer + config.h_flank + config.h_flank_reserve) * 1e-3)
     :z((config.h_base + 2 * config.r_outer + config.h_upper_arm + 2 * config.h_flank) * 1e-3)
 upperarm[4] = motor4340:copy():rot(0, 90, -90)
     :y(-(config.r_outer + config.h_flank + config.h_flank_reserve + config.thickness) * 1e-3)
     :z((config.h_base + 2 * config.r_outer + config.h_upper_arm + 2 * config.h_flank) * 1e-3)
 
-upperarm[5] = linkage.m1:copy()
+upperarm[5] = m1_linkage:copy()
     :y(-(2 * config.r_outer + config.h_flank + config.h_flank_reserve) * 1e-3)
     :z((config.h_base + config.h_flank_reserve + 2 * config.r_outer) * 1e-3)
 
