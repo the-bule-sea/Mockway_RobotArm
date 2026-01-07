@@ -62,7 +62,7 @@ pip install numpy matplotlib
 
 ## 使用方法
 
-### 运行完整测试
+### 运行动力学仿真测试
 
 ```bash
 cd tools/dynamics_test
@@ -73,6 +73,25 @@ python inverse_dynamics_test.py
 1. 静态配置测试
 2. 动力学分解测试
 3. 轨迹跟踪测试（并生成可视化图表）
+
+### 运行实时力矩补偿控制（新增）
+
+```bash
+cd tools/dynamics_test
+python realtime_torque_compensation.py
+```
+
+**前置要求**：
+- 硬件连接：确保 USB-CAN 适配器已连接（默认COM9）
+- 电机配置：
+  - 关节1：DM-J4310-2EC 电机，CAN ID = 1
+  - 关节2：DM4340 电机，CAN ID = 2
+- 安全提示：首次运行前请确保机械臂处于安全位置
+
+**功能模式**：
+1. **重力补偿**：实时补偿重力力矩，机械臂可手动移动且感觉"失重"
+2. **完整动力学补偿**：补偿重力、科里奥利力和离心力
+3. **交互式控制**：可实时切换补偿模式和调整参数
 
 ### 输出示例
 
@@ -106,10 +125,11 @@ Joint1 = 45°:
 
 ```
 dynamics_test/
-├── inverse_dynamics_test.py    # 主测试程序
-├── requirements.txt            # Python 依赖
-├── README.md                   # 本文档
-└── trajectory_results.png      # 生成的可视化结果（运行后生成）
+├── inverse_dynamics_test.py         # 动力学仿真测试程序
+├── realtime_torque_compensation.py  # 实时力矩补偿控制程序（新增）
+├── requirements.txt                 # Python 依赖
+├── README.md                        # 本文档
+└── trajectory_results.png           # 生成的可视化结果（运行后生成）
 ```
 
 ## 核心 API
@@ -196,6 +216,92 @@ A: 在 `test_trajectory_tracking()` 函数中修改 `amplitude` 和 `frequency` 
 **Q: 可以用于其他机器人吗？**
 
 A: 可以，只需将 URDF 文件路径改为你的机器人模型即可。确保 URDF 包含正确的惯性参数。
+
+## 实时力矩补偿控制详解
+
+### RealtimeTorqueController 类
+
+**新增功能**：实时动力学力矩补偿控制器
+
+```python
+class RealtimeTorqueController:
+    def __init__(self, can_port='COM9', can_baudrate=1000000)
+    def setup()                           # 初始化CAN和电机
+    def enable_motors()                   # 使能电机
+    def disable_motors()                  # 失能电机
+    def start_control(mode="gravity")     # 启动控制循环
+    def stop_control()                    # 停止控制循环
+    def get_state_snapshot()              # 获取当前状态
+    def shutdown()                        # 关闭控制器
+```
+
+### 补偿模式说明
+
+1. **"gravity"** - 重力补偿模式
+   - 仅补偿重力力矩：`tau = g(q)`
+   - 适用场景：手动示教、拖动示教
+   - 效果：机械臂感觉"失重"，易于手动移动
+
+2. **"full_dynamics"** - 完整动力学补偿模式
+   - 补偿所有动力学项：`tau = M(q)·0 + C(q,v)·v + g(q)`
+   - 适用场景：需要精确动力学建模的控制
+   - 效果：补偿重力、科里奥利力和离心力
+
+3. **"none"** - 无补偿模式
+   - 不提供任何补偿
+   - 用于对比测试
+
+### 控制参数
+
+- **control_rate**: 控制频率（默认 200 Hz）
+- **kp**: MIT控制模式位置增益（默认 0.0，纯力矩控制）
+- **kd**: MIT控制模式阻尼增益（默认 1.0）
+
+### 使用示例
+
+```python
+from realtime_torque_compensation import RealtimeTorqueController
+
+# 初始化控制器
+controller = RealtimeTorqueController(can_port='COM9')
+
+try:
+    # 设置并使能
+    controller.setup()
+    controller.enable_motors()
+
+    # 启动重力补偿
+    controller.start_control(mode="gravity")
+
+    # 运行一段时间
+    time.sleep(10.0)
+
+    # 获取当前状态
+    state = controller.get_state_snapshot()
+    print(f"位置: {state['q']} rad")
+    print(f"力矩: {state['tau']} Nm")
+
+finally:
+    # 关闭
+    controller.shutdown()
+```
+
+### 安全提示
+
+⚠️ **重要安全注意事项**：
+
+1. **首次运行**：确保机械臂处于安全位置，周围无障碍物
+2. **紧急停止**：可随时按 Ctrl+C 停止程序
+3. **力矩限制**：电机有力矩限制（Joint1: 9Nm, Joint2: 28Nm）
+4. **监控温度**：长时间运行注意监控电机温度
+5. **CAN连接**：确保CAN通信稳定，避免通信丢失
+
+### 技术特性
+
+- **实时性**：200Hz 控制频率，满足实时控制需求
+- **线程安全**：使用锁机制保护共享状态
+- **模块化设计**：动力学计算与电机控制解耦
+- **多模式支持**：可在运行时切换补偿模式
 
 ## 许可
 
