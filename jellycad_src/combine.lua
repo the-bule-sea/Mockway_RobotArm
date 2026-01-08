@@ -11,6 +11,7 @@ local m_base = base.m:copy()
 local m_flank = flank.m:copy()
 local m_shell = shell.m:copy()
 local m1_linkage = linkage.m1:copy()
+local m2_linkage = linkage.m2:copy()
 local m_elbow = elbow.m:copy()
 
 -- 设置各个部件的质量
@@ -20,6 +21,7 @@ m_base:mass(78 * 1e-3)
 m_flank:mass((12 + 4 + 3) * 1e-3)
 m_shell:mass((55 + 2) * 1e-3)
 m1_linkage:mass((70.5 + 10) * 1e-3)
+m2_linkage:mass((60.5 + 10) * 1e-3)
 m_elbow:mass((30 + 10) * 1e-3)
 -- 基座
 local base_link = {}
@@ -63,6 +65,16 @@ forearm[2] = m_elbow:copy():rot(0, -90, -90)
     :y(-(config.r_outer + config.h_flank) * 1e-3)
     :z((config.h_base + 2 * config.r_outer + config.h_upper_arm + 2 * config.h_flank) * 1e-3)
     :color('#FF7F50')
+forearm[3] = m2_linkage:copy()
+    :z((config.h_base + 3 * config.r_outer + config.h_upper_arm + 2 * config.h_flank) * 1e-3)
+    :color('#FF7F50')
+forearm[4] = m_shell:copy():rot(0, 90, 90)
+    :y(-(config.r_outer) * 1e-3)
+    :z((config.h_base + 5 * config.r_outer + config.h_upper_arm + 1 * config.h_flank + config.h_fore_arm) * 1e-3)
+    :color('#FF7F50')
+forearm[5] = motor4310:copy():rot(0, 90, 90)
+    :y(-(config.r_outer - config.thickness) * 1e-3)
+    :z((config.h_base + 5 * config.r_outer + config.h_upper_arm + 1 * config.h_flank + config.h_fore_arm) * 1e-3)
 
 local d1 = (config.h_base + config.h_flank_reserve + config.r_outer) * 1e-3
 
