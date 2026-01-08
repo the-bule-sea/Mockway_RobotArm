@@ -1,13 +1,13 @@
 local config = require('config')
 
-function model_fix_flank()
+local function model_fix_flank()
     local fix_flank = cylinder.new(config.r_flank_outer, config.h_flank)
     fix_flank:fuse(cone.new(config.r_flank_outer, config.r_arm_out, config.r_flank_outer / 2 - config.h_flank)
         :z(config.h_flank))
     return fix_flank:copy()
 end
 
-function model_arm_link0(height0)
+local function model_arm_link0(height0)
     local fix_flank = model_fix_flank()
     local arm_link0 = cylinder.new(config.r_arm_out, height0)
     arm_link0:fuse(fix_flank:copy())
@@ -16,7 +16,7 @@ function model_arm_link0(height0)
     return arm_link0:copy()
 end
 
-function model_arm_link(height)
+local function model_arm_link(height)
     local arm_link = model_arm_link0(height)
     for deg = 60, 360, 60 do
         local rad = deg * math.pi / 180;

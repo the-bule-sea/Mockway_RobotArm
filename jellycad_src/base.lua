@@ -5,7 +5,7 @@ JellyCAD version v0.3.9
 Mockway Structure Base Model File
 --]]
 local config = require('config')
-function model_base0()
+local function model_base0()
     -- 底座实体
     local base0 = cylinder.new(config.r_base_down, config.h_base)
     -- 切割椭圆环
@@ -18,7 +18,7 @@ function model_base0()
     return base0:copy()
 end
 
-function model_base()
+local function model_base()
     local base = model_base0()
     -- 圆角
     local edge_info = { type = 'bspline_curve', first = { 45, 0, 8 }, last = { 45, 0, 8 }, tol = 1e-3 }

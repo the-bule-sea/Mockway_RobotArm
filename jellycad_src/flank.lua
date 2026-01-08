@@ -6,13 +6,13 @@ Mockway Structure Flank Model File
 --]]
 local config = require('config')
 
-function model_flank0()
+local function model_flank0()
     local flank0 = cylinder.new(config.r_flank_outer, config.h_flank)
     flank0:fuse(cylinder.new(config.r_flank_inner, config.h_flank_sum))
     return flank0:copy()
 end
 
-function model_flank()
+local function model_flank()
     local flank = model_flank0()
     for i, deg in ipairs({ 0, 60, 120, 180, 240, 300 }) do
         local rad = deg * math.pi / 180;
