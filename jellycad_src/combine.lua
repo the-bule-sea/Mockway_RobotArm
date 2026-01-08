@@ -20,6 +20,7 @@ m_base:mass(78 * 1e-3)
 m_flank:mass((12 + 4 + 3) * 1e-3)
 m_shell:mass((55 + 2) * 1e-3)
 m1_linkage:mass((70.5 + 10) * 1e-3)
+m_elbow:mass((30 + 10) * 1e-3)
 -- 基座
 local base_link = {}
 base_link[1] = m_base:copy()
@@ -54,6 +55,14 @@ upperarm[5] = m1_linkage:copy()
 
 -- 前臂
 local forearm = {}
+forearm[1] = m_flank:copy():rot(90, 0, 0)
+    :y(-(config.r_outer) * 1e-3)
+    :z((config.h_base + 2 * config.r_outer + config.h_upper_arm + 2 * config.h_flank) * 1e-3)
+    :color('#FF7F50')
+forearm[2] = m_elbow:copy():rot(0, -90, -90)
+    :y(-(config.r_outer + config.h_flank) * 1e-3)
+    :z((config.h_base + 2 * config.r_outer + config.h_upper_arm + 2 * config.h_flank) * 1e-3)
+    :color('#FF7F50')
 
 local d1 = (config.h_base + config.h_flank_reserve + config.r_outer) * 1e-3
 
@@ -61,7 +70,7 @@ local joint_axes = {}
 joint_axes[1] = axes.new({ 0, 0, d1, 0, 0, 0 }, 0.1)
 joint_axes[2] = joint_axes[1]:copy():move({ 0, 0, 0, 90, 0, 0 })
 
-for _, arr in ipairs({ joint_axes, base_link, shoulder, upperarm }) do
+for _, arr in ipairs({ joint_axes, base_link, shoulder, upperarm, forearm }) do
     for _, value in ipairs(arr) do
         value:show()
     end
