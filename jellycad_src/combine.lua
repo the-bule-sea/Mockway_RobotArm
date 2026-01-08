@@ -1,38 +1,39 @@
 local base = require('base')
 local shell = require('shell')
--- local lid = require('lid')
 local flank = require('flank')
--- local elbow = require('elbow')
--- local tail = require('tail')
 local linkage = require('linkage')
 local config = require('config')
 
+local motor4310 = cylinder.new(config.r_motor * 1e-3, 45 * 1e-3):color('black')
+local motor4340 = cylinder.new(config.r_motor * 1e-3, 52.25 * 1e-3):color('black')
+local m_base = base.m:copy()
+local m_flank = flank.m:copy()
+local m_shell = shell.m:copy()
+local m1_linkage = linkage.m1:copy()
 
-local motor4310 = cylinder.new(config.r_motor * 1e-3, 45 * 1e-3):color('black'):mass(0.295)
-local motor4340 = cylinder.new(config.r_motor * 1e-3, 52.25 * 1e-3):color('black'):mass(0.36)
-
+-- 设置各个部件的质量
+motor4310:mass(295 * 1e-3)
+motor4340:mass(360 * 1e-3)
+m_base:mass(78 * 1e-3)
+m_flank:mass((12 + 4 + 3) * 1e-3)
+m_shell:mass((55 + 2) * 1e-3)
+m1_linkage:mass((70.5 + 10) * 1e-3)
+-- 基座
 local base_link = {}
-local shoulder = {}
-local upperarm = {}
-
-local m_base = base.m:copy():mass(78 * 1e-3)
-local m_flank = flank.m:copy():mass((12 + 4 + 3) * 1e-3)
-local m_shell = shell.m:copy():mass((55 + 2) * 1e-3)
-local m1_linkage = linkage.m1:copy():mass((70.5 + 10) * 1e-3)
-
 base_link[1] = m_base:copy()
 base_link[2] = m_flank:copy():z((config.h_base - config.h_flank) * 1e-3)
 for i = 1, #base_link do
     base_link[i]:color('#6495ED')
 end
-shoulder[1] = m_shell:copy():z((config.h_base + config.h_flank_reserve) * 1e-3):rz(-90)
+-- 肩部
+local shoulder = {}
+shoulder[1] = m_shell:copy():z((config.h_base + config.h_flank_reserve) * 1e-3)
+    :rz(-90):color('#8470FF')
 shoulder[2] = motor4310:copy():z((config.h_base + config.h_flank_reserve + config.thickness) * 1e-3)
 shoulder[3] = m_flank:copy():rot(90, 0, 0):y((-config.r_outer) * 1e-3)
-    :z((config.h_base + config.h_flank_reserve + config.r_outer) * 1e-3)
-for i = 1, #shoulder do
-    shoulder[i]:color('#8470FF')
-end
-
+    :z((config.h_base + config.h_flank_reserve + config.r_outer) * 1e-3):color('#8470FF')
+-- 上臂
+local upperarm = {}
 upperarm[1] = m_shell:copy():rot(180, -90, -90)
     :y(-(config.r_outer + config.h_flank + config.h_flank_reserve) * 1e-3)
     :z((config.h_base + config.h_flank_reserve + config.r_outer) * 1e-3)
