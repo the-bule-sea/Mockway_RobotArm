@@ -2,6 +2,7 @@ local base = require('base')
 local shell = require('shell')
 local flank = require('flank')
 local linkage = require('linkage')
+local elbow = require('elbow')
 local config = require('config')
 
 local motor4310 = cylinder.new(config.r_motor * 1e-3, 45 * 1e-3):color('black')
@@ -10,6 +11,7 @@ local m_base = base.m:copy()
 local m_flank = flank.m:copy()
 local m_shell = shell.m:copy()
 local m1_linkage = linkage.m1:copy()
+local m_elbow = elbow.m:copy()
 
 -- 设置各个部件的质量
 motor4310:mass(295 * 1e-3)
@@ -36,21 +38,22 @@ shoulder[3] = m_flank:copy():rot(90, 0, 0):y((-config.r_outer) * 1e-3)
 local upperarm = {}
 upperarm[1] = m_shell:copy():rot(180, -90, -90)
     :y(-(config.r_outer + config.h_flank + config.h_flank_reserve) * 1e-3)
-    :z((config.h_base + config.h_flank_reserve + config.r_outer) * 1e-3)
+    :z((config.h_base + config.h_flank_reserve + config.r_outer) * 1e-3):color('#31C5C5')
 upperarm[2] = motor4340:copy():rot(180, -90, -90)
     :y(-(config.r_outer + config.h_flank + config.h_flank_reserve + config.thickness) * 1e-3)
     :z((config.h_base + config.h_flank_reserve + config.r_outer) * 1e-3)
-
 upperarm[3] = m_shell:copy():rot(0, 90, -90)
     :y(-(config.r_outer + config.h_flank + config.h_flank_reserve) * 1e-3)
-    :z((config.h_base + 2 * config.r_outer + config.h_upper_arm + 2 * config.h_flank) * 1e-3)
+    :z((config.h_base + 2 * config.r_outer + config.h_upper_arm + 2 * config.h_flank) * 1e-3):color('#31C5C5')
 upperarm[4] = motor4340:copy():rot(0, 90, -90)
     :y(-(config.r_outer + config.h_flank + config.h_flank_reserve + config.thickness) * 1e-3)
     :z((config.h_base + 2 * config.r_outer + config.h_upper_arm + 2 * config.h_flank) * 1e-3)
-
 upperarm[5] = m1_linkage:copy()
     :y(-(2 * config.r_outer + config.h_flank + config.h_flank_reserve) * 1e-3)
-    :z((config.h_base + config.h_flank_reserve + 2 * config.r_outer) * 1e-3)
+    :z((config.h_base + config.h_flank_reserve + 2 * config.r_outer) * 1e-3):color('#31C5C5')
+
+-- 前臂
+local forearm = {}
 
 local d1 = (config.h_base + config.h_flank_reserve + config.r_outer) * 1e-3
 
@@ -75,4 +78,4 @@ joint1 = urdf:add(joint.new("joint1", joint_axes[1], "revolute", j1_limit))
 link1 = joint1:next(link.new("link1", shoulder))
 joint2 = link1:add(joint.new("joint2", joint_axes[2], "revolute", j2_limit))
 link2 = joint2:next(link.new("link2", upperarm))
-urdf:export({ name = 'mockway_description', path = '../', ros_version = 2 })
+-- urdf:export({ name = 'mockway_description', path = '../', ros_version = 2 })
