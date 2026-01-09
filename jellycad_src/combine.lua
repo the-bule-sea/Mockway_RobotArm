@@ -33,6 +33,9 @@ end
 -- 公用参数
 local h0_shoulder = config.h_base + config.h_flank_reserve + config.r_outer
 local h1_shoulder = h0_shoulder + 2 * config.r_outer + config.h_upper_arm
+local w0_wrist = 2 * config.r_outer + config.h_flank_sum - config.thickness + config.h_motor_convex
+local w1_wrist = h1_shoulder + 3 * config.r_outer + config.h_fore_arm + config.thickness + config.h_flank_reserve +
+    config.h_motor_convex
 -- 【肩部】
 local shoulder = {}
 shoulder[1] = m_shell:copy():z((config.h_base + config.h_flank_reserve) * 1e-3)
@@ -83,16 +86,30 @@ forearm[5] = motor4310:copy():rot(0, 90, 90)
 -- 【手腕1】
 local wrist1 = {}
 wrist1[1] = m_shell:copy():rot(0, 180, -90)
-    :y(-(2 * config.r_outer + config.h_flank_sum - config.thickness + config.h_motor_convex) * 1e-3)
+    :y(-(w0_wrist) * 1e-3)
     :z((h1_shoulder + 3 * config.r_outer + config.h_fore_arm) * 1e-3)
     :color('#DA70D6')
 wrist1[2] = motor4310:copy():rot(0, 180, -90)
-    :y(-(2 * config.r_outer + config.h_flank_sum - config.thickness + config.h_motor_convex) * 1e-3)
+    :y(-(w0_wrist) * 1e-3)
     :z((h1_shoulder + 3 * config.r_outer + config.h_fore_arm - config.thickness) * 1e-3)
 wrist1[3] = m_flank:copy():rot(-90, 0, 0)
     :y(-(config.r_outer + config.h_flank_sum - config.thickness + config.h_motor_convex) * 1e-3)
     :z((h1_shoulder + 2 * config.r_outer + config.h_fore_arm) * 1e-3)
     :color('#DA70D6')
+
+-- 【手腕2】
+local wrist2 = {}
+wrist2[1] = m_shell:copy():rot(0, 90, 90)
+    :y(-(w0_wrist + config.r_outer) * 1e-3)
+    :z((w1_wrist + config.r_outer) * 1e-3)
+    :color('#4682B4')
+wrist2[2] = motor4310:copy():rot(0, 90, 90)
+    :y(-(w0_wrist + config.r_outer - config.thickness) * 1e-3)
+    :z((w1_wrist + config.r_outer) * 1e-3)
+wrist2[3] = m_flank:copy():rot(180, 0, 0)
+    :y(-(w0_wrist) * 1e-3)
+    :z((w1_wrist) * 1e-3)
+    :color('#4682B4')
 
 -- 基座底部到J2轴的距离
 local d1 = (h0_shoulder) * 1e-3
@@ -104,7 +121,7 @@ joint_axes[1] = axes.new({ 0, 0, d1, 0, 0, 0 }, 0.1)
 joint_axes[2] = joint_axes[1]:copy():move({ 0, 0, 0, 90, 0, 0 })
 joint_axes[3] = joint_axes[2]:copy():move({ 0, a2, 0, 0, 0, 0 })
 
-for _, arr in ipairs({ joint_axes, base_link, shoulder, upperarm, forearm, wrist1 }) do
+for _, arr in ipairs({ joint_axes, base_link, shoulder, upperarm, forearm, wrist1, wrist2 }) do
     for _, value in ipairs(arr) do
         value:show()
     end
