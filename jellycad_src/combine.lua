@@ -80,7 +80,23 @@ forearm[5] = motor4310:copy():rot(0, 90, 90)
     :y(-(config.r_outer - config.thickness) * 1e-3)
     :z((h1_shoulder + 2 * config.r_outer + config.h_fore_arm) * 1e-3)
 
+-- 【手腕1】
+local wrist1 = {}
+wrist1[1] = m_shell:copy():rot(0, 180, -90)
+    :y(-(2 * config.r_outer + config.h_flank_sum - config.thickness + config.h_motor_convex) * 1e-3)
+    :z((h1_shoulder + 3 * config.r_outer + config.h_fore_arm) * 1e-3)
+    :color('#DA70D6')
+wrist1[2] = motor4310:copy():rot(0, 180, -90)
+    :y(-(2 * config.r_outer + config.h_flank_sum - config.thickness + config.h_motor_convex) * 1e-3)
+    :z((h1_shoulder + 3 * config.r_outer + config.h_fore_arm - config.thickness) * 1e-3)
+wrist1[3] = m_flank:copy():rot(-90, 0, 0)
+    :y(-(config.r_outer + config.h_flank_sum - config.thickness + config.h_motor_convex) * 1e-3)
+    :z((h1_shoulder + 2 * config.r_outer + config.h_fore_arm) * 1e-3)
+    :color('#DA70D6')
+
+-- 基座底部到J2轴的距离
 local d1 = (h0_shoulder) * 1e-3
+-- J2轴到J3轴的距离
 local a2 = (2 * config.r_outer + config.h_upper_arm) * 1e-3
 
 local joint_axes = {}
@@ -88,7 +104,7 @@ joint_axes[1] = axes.new({ 0, 0, d1, 0, 0, 0 }, 0.1)
 joint_axes[2] = joint_axes[1]:copy():move({ 0, 0, 0, 90, 0, 0 })
 joint_axes[3] = joint_axes[2]:copy():move({ 0, a2, 0, 0, 0, 0 })
 
-for _, arr in ipairs({ joint_axes, base_link, shoulder, upperarm, forearm }) do
+for _, arr in ipairs({ joint_axes, base_link, shoulder, upperarm, forearm, wrist1 }) do
     for _, value in ipairs(arr) do
         value:show()
     end
