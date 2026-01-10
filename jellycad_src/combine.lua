@@ -127,17 +127,17 @@ for _, arr in ipairs({ joint_axes, base_link, shoulder, upperarm, forearm, wrist
     end
 end
 
-j1_limit = { lower = -6.28, upper = 6.28, velocity = 3.14, effort = 9 }
-j2_limit = { lower = -6.28, upper = 6.28, velocity = 3.14, effort = 9 }
-j3_limit = { lower = -3.14, upper = 3.14, velocity = 3.14, effort = 9 }
-j4_limit = { lower = -6.28, upper = 6.28, velocity = 3.14, effort = 3 }
-j5_limit = { lower = -6.28, upper = 6.28, velocity = 3.14, effort = 3 }
-j6_limit = { lower = -6.28, upper = 6.28, velocity = 3.14, effort = 3 }
-urdf = link.new("base_link", base_link)
-joint1 = urdf:add(joint.new("joint1", joint_axes[1], "revolute", j1_limit))
-link1 = joint1:next(link.new("link1", shoulder))
-joint2 = link1:add(joint.new("joint2", joint_axes[2], "revolute", j2_limit))
-link2 = joint2:next(link.new("link2", upperarm))
-joint3 = link2:add(joint.new("joint3", joint_axes[3], "revolute", j3_limit))
-link3 = joint3:next(link.new("link3", forearm))
+local j1_limit = { lower = -6.28, upper = 6.28, velocity = 3.14, effort = 9 }
+local j2_limit = { lower = -6.28, upper = 6.28, velocity = 3.14, effort = 9 }
+local j3_limit = { lower = -3.14, upper = 3.14, velocity = 3.14, effort = 9 }
+local j4_limit = { lower = -6.28, upper = 6.28, velocity = 3.14, effort = 3 }
+local j5_limit = { lower = -6.28, upper = 6.28, velocity = 3.14, effort = 3 }
+local j6_limit = { lower = -6.28, upper = 6.28, velocity = 3.14, effort = 3 }
+local urdf = link.new("base_link", base_link)
+local joint1 = urdf:add(joint.new("joint1", joint_axes[1], "revolute", j1_limit))
+local link1 = joint1:next(link.new("link1", shoulder))
+local joint2 = link1:add(joint.new("joint2", joint_axes[2], "revolute", j2_limit))
+local link2 = joint2:next(link.new("link2", upperarm))
+local joint3 = link2:add(joint.new("joint3", joint_axes[3], "revolute", j3_limit))
+local link3 = joint3:next(link.new("link3", forearm))
 urdf:export({ name = 'mockway_description', path = '../', ros_version = 2 })
