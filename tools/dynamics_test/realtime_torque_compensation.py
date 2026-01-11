@@ -9,10 +9,9 @@ Mockway Robot - Real-time Torque Compensation using Pinocchio
 
 This program implements real-time dynamics-based torque compensation for the Mockway robot:
 - Uses Pinocchio for inverse dynamics computation
-- Controls two joints using DM motors via CAN
-- Joint 1: DM-J4310-2EC (ID=1)
-- Joint 2: DM4340 (ID=2)
-- Provides gravity compensation and optional trajectory tracking
+- Controls multiple joints using DM motors via CAN (dynamically configured)
+- Supports configurable number of motors with individual direction settings
+- Provides gravity compensation and full dynamics compensation
 """
 
 import sys
@@ -207,6 +206,19 @@ class RealtimeTorqueController:
         """
         return alpha * new_value + (1.0 - alpha) * filtered_value
 
+    def _unified_can_callback(self, frame_id: int, data: bytes, frame_type: int):
+        """
+        统一的CAN接收回调函数，将数据分发给所有电机
+
+        Args:
+            frame_id: CAN帧ID
+            data: CAN数据
+            frame_type: 帧类型
+        """
+        # 将CAN帧分发给所有电机处理
+        for motor in self.motors:
+            motor._on_can_frame(frame_id, data, frame_type)
+
     def setup(self):
         """Setup CAN connection and motors"""
         print("\n" + "="*60)
@@ -231,6 +243,11 @@ class RealtimeTorqueController:
             )
             self.motors.append(motor)
             print(f"  电机 {motor_config.motor_id} ({motor_config.description}): {motor_config.motor_type.name}")
+
+        # 设置统一的CAN接收回调（覆盖各个电机单独注册的回调）
+        # 这样可以确保所有电机都能收到CAN数据
+        self.can_adapter.set_rx_callback(self._unified_can_callback)
+        print("\n已设置统一CAN接收回调")
 
         time.sleep(0.2)
         print(f"\n电机初始化完成，共 {len(self.motors)} 个电机")
@@ -285,8 +302,13 @@ class RealtimeTorqueController:
         q = np.zeros(self.num_motors)
         v = np.zeros(self.num_motors)
 
-        for i, motor in enumerate(self.motors):
-            state = motor.get_state()
+        # First collect all motor states to avoid potential reference issues
+        states = []
+        for motor in self.motors:
+            states.append(motor.get_state())
+
+        # Then process them with motor direction conversion
+        for i, state in enumerate(states):
             # Apply motor direction (convert motor coordinates to joint coordinates)
             q[i] = state.position * self.motor_directions[i]
             v[i] = state.velocity * self.motor_directions[i]
@@ -337,10 +359,14 @@ class RealtimeTorqueController:
         Args:
             tau: Joint torques (num_motors,) in Nm (in joint coordinates)
         """
-        # Get current motor state (raw motor feedback)
+        # First collect all motor states to avoid potential reference issues
+        states = []
+        for motor in self.motors:
+            states.append(motor.get_state())
+
+        # Extract raw motor positions
         q_motor = np.zeros(self.num_motors)
-        for i, motor in enumerate(self.motors):
-            state = motor.get_state()
+        for i, state in enumerate(states):
             q_motor[i] = state.position  # Raw motor position (not converted)
 
         # Send MIT control commands to all motors
