@@ -28,19 +28,19 @@ motors:
     description: "Joint 3 - Forearm"
 
   - id: 4
-    type: "DM4310"
+    type: "DM_J4310_2EC"
     master_id: 0
     direction: 1                            # 旋转方向: 1=正向(与关节同向), -1=反向(与关节反向)
     description: "Joint 4 - Wrist Pitch"
 
   - id: 5
-    type: "DM4310"
+    type: "DM_J4310_2EC"
     master_id: 0
     direction: 1                            # 旋转方向: 1=正向(与关节同向), -1=反向(与关节反向)
     description: "Joint 5 - Wrist Roll"
 
   - id: 6
-    type: "DM4310"
+    type: "DM_J4310_2EC"
     master_id: 0
     direction: 1                            # 旋转方向: 1=正向(与关节同向), -1=反向(与关节反向)
     description: "Joint 6 - Wrist Yaw"
