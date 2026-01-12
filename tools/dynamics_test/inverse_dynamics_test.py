@@ -129,13 +129,14 @@ def test_static_configurations():
     # Initialize dynamics
     dynamics = MockwayDynamics(str(urdf_path))
 
-    # Test configurations
+    # Test configurations (6-DOF robot)
     test_configs = {
         "Zero position": np.zeros(dynamics.nq),
-        "Joint1 = 45°": np.array([np.pi/4, 0]),
-        "Joint2 = 45°": np.array([0, np.pi/4]),
-        "Both = 45°": np.array([np.pi/4, np.pi/4]),
-        "Joint1 = 90°": np.array([np.pi/2, 0]),
+        "Joint1 = 45°": np.array([np.pi/4, 0, 0, 0, 0, 0]),
+        "Joint2 = 45°": np.array([0, np.pi/4, 0, 0, 0, 0]),
+        "Joint3 = 45°": np.array([0, 0, np.pi/4, 0, 0, 0]),
+        "All joints = 30°": np.array([np.pi/6, np.pi/6, np.pi/6, np.pi/6, np.pi/6, np.pi/6]),
+        "Wrist config": np.array([0, 0, 0, np.pi/4, np.pi/4, np.pi/4]),
     }
 
     for name, q in test_configs.items():
@@ -173,9 +174,9 @@ def test_trajectory_tracking():
     dt = 0.01  # time step
     t = np.arange(0, duration, dt)
 
-    # Trajectory parameters
-    amplitude = np.array([np.pi/3, np.pi/4])  # amplitude for each joint
-    frequency = np.array([0.5, 0.7])  # Hz
+    # Trajectory parameters (6-DOF robot)
+    amplitude = np.array([np.pi/3, np.pi/4, np.pi/6, np.pi/8, np.pi/8, np.pi/8])  # amplitude for each joint
+    frequency = np.array([0.5, 0.7, 0.6, 0.8, 0.9, 1.0])  # Hz
 
     # Preallocate arrays
     n_steps = len(t)
@@ -228,10 +229,10 @@ def test_dynamics_decomposition():
     # Initialize dynamics
     dynamics = MockwayDynamics(str(urdf_path))
 
-    # Test configuration
-    q = np.array([np.pi/4, np.pi/6])
-    v = np.array([0.5, -0.3])
-    a = np.array([1.0, 0.5])
+    # Test configuration (6-DOF robot)
+    q = np.array([np.pi/4, np.pi/6, -np.pi/8, np.pi/12, -np.pi/12, np.pi/6])
+    v = np.array([0.5, -0.3, 0.2, -0.1, 0.15, -0.25])
+    a = np.array([1.0, 0.5, -0.3, 0.2, -0.1, 0.4])
 
     print(f"\nConfiguration:")
     print(f"  q = {np.rad2deg(q)} deg")
@@ -266,51 +267,52 @@ def test_dynamics_decomposition():
 
 def plot_trajectory_results(t, q, v, a, tau):
     """Plot trajectory tracking results"""
-    fig, axes = plt.subplots(4, 1, figsize=(12, 10))
-    fig.suptitle('Inverse Dynamics - Trajectory Tracking Results', fontsize=14)
+    fig, axes = plt.subplots(4, 1, figsize=(14, 12))
+    fig.suptitle('Inverse Dynamics - Trajectory Tracking Results (6-DOF Robot)', fontsize=14)
 
-    joint_names = ['Joint 1', 'Joint 2']
-    colors = ['blue', 'red']
+    n_joints = q.shape[1]
+    joint_names = [f'Joint {i+1}' for i in range(n_joints)]
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']  # 6 distinct colors
 
     # Plot positions
     axes[0].set_title('Joint Positions')
-    for i in range(q.shape[1]):
-        axes[0].plot(t, np.rad2deg(q[:, i]), color=colors[i], label=joint_names[i])
+    for i in range(n_joints):
+        axes[0].plot(t, np.rad2deg(q[:, i]), color=colors[i], label=joint_names[i], linewidth=1.5)
     axes[0].set_ylabel('Position [deg]')
-    axes[0].legend()
-    axes[0].grid(True)
+    axes[0].legend(ncol=3, loc='upper right', fontsize=9)
+    axes[0].grid(True, alpha=0.3)
 
     # Plot velocities
     axes[1].set_title('Joint Velocities')
-    for i in range(v.shape[1]):
-        axes[1].plot(t, v[:, i], color=colors[i], label=joint_names[i])
+    for i in range(n_joints):
+        axes[1].plot(t, v[:, i], color=colors[i], label=joint_names[i], linewidth=1.5)
     axes[1].set_ylabel('Velocity [rad/s]')
-    axes[1].legend()
-    axes[1].grid(True)
+    axes[1].legend(ncol=3, loc='upper right', fontsize=9)
+    axes[1].grid(True, alpha=0.3)
 
     # Plot accelerations
     axes[2].set_title('Joint Accelerations')
-    for i in range(a.shape[1]):
-        axes[2].plot(t, a[:, i], color=colors[i], label=joint_names[i])
+    for i in range(n_joints):
+        axes[2].plot(t, a[:, i], color=colors[i], label=joint_names[i], linewidth=1.5)
     axes[2].set_ylabel('Acceleration [rad/s²]')
-    axes[2].legend()
-    axes[2].grid(True)
+    axes[2].legend(ncol=3, loc='upper right', fontsize=9)
+    axes[2].grid(True, alpha=0.3)
 
     # Plot torques
     axes[3].set_title('Required Joint Torques (Inverse Dynamics)')
-    for i in range(tau.shape[1]):
-        axes[3].plot(t, tau[:, i], color=colors[i], label=joint_names[i])
+    for i in range(n_joints):
+        axes[3].plot(t, tau[:, i], color=colors[i], label=joint_names[i], linewidth=1.5)
     axes[3].set_ylabel('Torque [Nm]')
     axes[3].set_xlabel('Time [s]')
-    axes[3].legend()
-    axes[3].grid(True)
+    axes[3].legend(ncol=3, loc='upper right', fontsize=9)
+    axes[3].grid(True, alpha=0.3)
 
     plt.tight_layout()
 
     # Save figure
     output_dir = Path(__file__).parent
     output_path = output_dir / "trajectory_results.png"
-    plt.savefig(output_path, dpi=150)
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
     print(f"\nPlot saved to: {output_path}")
 
     plt.show()
