@@ -109,7 +109,7 @@ vim ~/mockway_ws/src/mockway_robotics/moveit_mockway_config/config/joint_limits.
 
 将所有整型数据改为浮点型
 
-#### ❌ Unable to identify any set of controllers that can actuate the specified joints: [ joint1 joint2 joint3 joint4 joint5 joint6 ]
+#### ❌ No action namespace specified for controller `mockway_group_controller` through parameter `moveit_simple_controller_manager.mockway_group_controller.action_ns`
 
 编辑`moveit_controllers.yaml`文件
 
