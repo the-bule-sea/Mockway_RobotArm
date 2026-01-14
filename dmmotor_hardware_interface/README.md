@@ -1,12 +1,14 @@
 # DM Motor Hardware Interface for ROS2 Control
 
-ROS2 Control hardware interface plugin for DM motors (DM-J4310-2EC and DM4340) using SocketCAN.
+ROS2 Control hardware interface plugin for DM motors (DM-J4310-2EC and DM4340) supporting multiple CAN interfaces.
 
 ## Features
 
 - Support for DM-J4310-2EC and DM4340 motors
 - MIT control mode for smooth position/velocity control
-- SocketCAN interface for CAN communication
+- **Multiple CAN interface support:**
+  - SocketCAN (Linux native CAN interface)
+  - USB-CAN adapter (WitMotion USB-CAN and compatible devices)
 - Real-time motor state feedback (position, velocity, torque, temperature)
 - Configurable per-joint motor parameters
 
@@ -34,14 +36,18 @@ ROS2 Control hardware interface plugin for DM motors (DM-J4310-2EC and DM4340) u
 
 ## Prerequisites
 
-### 1. Install SocketCAN utilities
+Choose one of the following CAN interface options:
+
+### Option 1: SocketCAN (Linux Native CAN)
+
+#### 1.1 Install SocketCAN utilities
 
 ```bash
 sudo apt-get update
 sudo apt-get install can-utils
 ```
 
-### 2. Configure CAN Interface
+#### 1.2 Configure CAN Interface
 
 Create a script to configure the CAN interface (e.g., `/etc/systemd/system/can-setup.sh`):
 
@@ -80,7 +86,7 @@ sudo systemctl enable can-setup.service
 sudo systemctl start can-setup.service
 ```
 
-### 3. Verify CAN Interface
+#### 1.3 Verify CAN Interface
 
 ```bash
 # Check if CAN interface is up
@@ -91,6 +97,72 @@ candump can0
 
 # Send test frame
 cansend can0 123#DEADBEEF
+```
+
+### Option 2: USB-CAN Adapter (WitMotion and Compatible)
+
+#### 2.1 Connect USB-CAN Adapter
+
+Connect your USB-CAN adapter to the computer. The adapter should appear as a serial device.
+
+#### 2.2 Find Serial Port
+
+```bash
+# List available serial ports
+ls /dev/ttyUSB* /dev/ttyACM*
+
+# Or use dmesg to see the device
+dmesg | grep tty
+```
+
+Common ports:
+- `/dev/ttyUSB0` - Most USB-serial adapters
+- `/dev/ttyACM0` - Some USB-CDC adapters
+- `COM3`, `COM4`, etc. - Windows (not officially supported yet)
+
+#### 2.3 Set Serial Port Permissions
+
+Add your user to the `dialout` group to access serial ports:
+
+```bash
+sudo usermod -a -G dialout $USER
+```
+
+Log out and log back in for changes to take effect.
+
+Alternatively, create a udev rule (`/etc/udev/rules.d/99-usb-can.rules`):
+
+```
+# WitMotion USB-CAN adapter
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", MODE="0666", GROUP="dialout"
+```
+
+Reload udev rules:
+```bash
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
+
+#### 2.4 Test USB-CAN Connection
+
+You can test the USB-CAN adapter using the Python driver:
+
+```bash
+cd ~/ws/mockway_robotics/tools/motor_gui
+python3 dm_motor_driver.py
+```
+
+Or use a serial terminal:
+```bash
+# Install minicom if not already installed
+sudo apt-get install minicom
+
+# Connect to the adapter (adjust port and baudrate)
+minicom -D /dev/ttyUSB0 -b 921600
+
+# Send AT command to test
+AT+AT
+# Should receive: OK
 ```
 
 ## Building
@@ -107,15 +179,40 @@ The hardware interface is configured in the URDF/xacro file (`moveit_mockway_con
 
 ### Hardware Parameters
 
+#### For SocketCAN
+
 ```xml
 <hardware>
     <plugin>dmmotor_hardware_interface/DMMototHardwareInterface</plugin>
+    <param name="can_interface_type">socketcan</param>  <!-- Optional, default is socketcan -->
     <param name="can_port">can0</param>
     <param name="can_baudrate">1000000</param>
     <param name="position_kp">40.0</param>
     <param name="position_kd">1.0</param>
 </hardware>
 ```
+
+#### For USB-CAN Adapter
+
+```xml
+<hardware>
+    <plugin>dmmotor_hardware_interface/DMMototHardwareInterface</plugin>
+    <param name="can_interface_type">usb_can</param>
+    <param name="can_port">/dev/ttyUSB0</param>           <!-- Serial port -->
+    <param name="serial_baudrate">921600</param>          <!-- Serial baudrate, default: 921600 -->
+    <param name="can_baudrate">1000000</param>            <!-- CAN baudrate -->
+    <param name="position_kp">40.0</param>
+    <param name="position_kd">1.0</param>
+</hardware>
+```
+
+**Parameter Reference:**
+- `can_interface_type`: Interface type - `socketcan` or `usb_can` (default: `socketcan`)
+- `can_port`: For SocketCAN: interface name (e.g., `can0`). For USB-CAN: serial port (e.g., `/dev/ttyUSB0`)
+- `can_baudrate`: CAN bus baudrate in bps (typically 1000000 for 1 Mbps)
+- `serial_baudrate`: (USB-CAN only) Serial port baudrate (default: 921600)
+- `position_kp`: Position control proportional gain [0-500]
+- `position_kd`: Position control derivative gain [0-5]
 
 ### Joint Parameters
 
@@ -173,13 +270,42 @@ ros2 control list_hardware_components
 
 ### CAN Interface Issues
 
+#### SocketCAN Issues
+
 **Problem:** `Failed to open CAN interface can0`
 
 **Solutions:**
 1. Check if CAN interface exists: `ip link show can0`
 2. Bring up the interface: `sudo ip link set up can0`
 3. Verify bitrate: `ip -details link show can0`
-4. Check permissions: Add user to `dialout` group if needed
+4. Check CAN hardware connection
+
+#### USB-CAN Issues
+
+**Problem:** `Failed to open serial port /dev/ttyUSB0`
+
+**Solutions:**
+1. Check if device exists: `ls -l /dev/ttyUSB0`
+2. Verify USB connection: `dmesg | tail`
+3. Check permissions: `sudo usermod -a -G dialout $USER` (log out/in after)
+4. Try different USB ports
+5. Check USB cable quality
+
+**Problem:** `Warning: Failed to enter AT mode`
+
+**Solutions:**
+1. Verify serial baudrate is correct (typically 921600)
+2. Try power-cycling the USB-CAN adapter
+3. Check if adapter is in correct mode
+4. Some adapters may work without AT mode confirmation - check if CAN communication works
+
+**Problem:** `Permission denied when accessing serial port`
+
+**Solutions:**
+1. Add user to dialout group: `sudo usermod -a -G dialout $USER`
+2. Log out and log back in
+3. Or use udev rules (see USB-CAN setup section)
+4. Temporary fix: `sudo chmod 666 /dev/ttyUSB0`
 
 **Problem:** `No feedback from motors`
 

@@ -76,35 +76,84 @@ struct CANFrame
   CANFrame() : id(0), len(0) { memset(data, 0, 8); }
 };
 
-// Simple CAN interface (to be implemented with actual CAN library)
-class CANInterface
+// Abstract CAN interface base class
+class CANInterfaceBase
 {
 public:
-  CANInterface(const std::string& port, int baudrate);
-  ~CANInterface();
+  virtual ~CANInterfaceBase() = default;
 
-  bool open();
-  void close();
-  bool sendFrame(const CANFrame& frame);
-  void setReceiveCallback(std::function<void(const CANFrame&)> callback);
+  virtual bool open() = 0;
+  virtual void close() = 0;
+  virtual bool sendFrame(const CANFrame& frame) = 0;
+  virtual void setReceiveCallback(std::function<void(const CANFrame&)> callback) = 0;
+
+protected:
+  std::atomic<bool> running_{false};
+  std::thread rx_thread_;
+  std::function<void(const CANFrame&)> rx_callback_;
+  std::mutex mutex_;
+};
+
+// SocketCAN interface implementation (Linux only)
+class SocketCANInterface : public CANInterfaceBase
+{
+public:
+  SocketCANInterface(const std::string& port, int baudrate);
+  ~SocketCANInterface() override;
+
+  bool open() override;
+  void close() override;
+  bool sendFrame(const CANFrame& frame) override;
+  void setReceiveCallback(std::function<void(const CANFrame&)> callback) override;
 
 private:
   void receiveLoop();
 
   std::string port_;
   int baudrate_;
-  int can_fd_;  // CAN file descriptor (SocketCAN)
-  std::atomic<bool> running_;
-  std::thread rx_thread_;
-  std::function<void(const CANFrame&)> rx_callback_;
-  std::mutex mutex_;
+  int can_fd_;  // CAN file descriptor
 };
+
+// USB-CAN interface implementation (WitMotion USB-CAN adapter)
+class USBCANInterface : public CANInterfaceBase
+{
+public:
+  USBCANInterface(const std::string& port, int serial_baudrate, int can_baudrate);
+  ~USBCANInterface() override;
+
+  bool open() override;
+  void close() override;
+  bool sendFrame(const CANFrame& frame) override;
+  void setReceiveCallback(std::function<void(const CANFrame&)> callback) override;
+
+private:
+  void receiveLoop();
+  void processRxBuffer();
+  void parseCANFrame(const std::vector<uint8_t>& frame);
+  bool sendATCommand(const std::string& cmd, bool wait_response = true);
+  bool enterATMode();
+
+  std::string port_;
+  int serial_baudrate_;
+  int can_baudrate_;
+  int serial_fd_;  // Serial port file descriptor
+  std::vector<uint8_t> rx_buffer_;
+
+  // Frame types
+  static constexpr int FRAME_TYPE_STD_DATA = 0x00;
+  static constexpr int FRAME_TYPE_STD_REMOTE = 0x01;
+  static constexpr int FRAME_TYPE_EXT_DATA = 0x02;
+  static constexpr int FRAME_TYPE_EXT_REMOTE = 0x03;
+};
+
+// Legacy alias for backward compatibility
+using CANInterface = SocketCANInterface;
 
 // DM Motor driver class
 class DMMotor
 {
 public:
-  DMMotor(std::shared_ptr<CANInterface> can, const MotorConfig& config);
+  DMMotor(std::shared_ptr<CANInterfaceBase> can, const MotorConfig& config);
   ~DMMotor();
 
   bool enable();
@@ -127,7 +176,7 @@ private:
   uint16_t floatToUint(double x, double x_min, double x_max, int bits);
   double uintToFloat(uint16_t x, double min, double max, int bits);
 
-  std::shared_ptr<CANInterface> can_;
+  std::shared_ptr<CANInterfaceBase> can_;
   MotorConfig config_;
   MotorState state_;
   mutable std::mutex state_mutex_;
@@ -166,8 +215,8 @@ public:
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
 
 private:
-  // CAN interface
-  std::shared_ptr<CANInterface> can_interface_;
+  // CAN interface (abstract base)
+  std::shared_ptr<CANInterfaceBase> can_interface_;
 
   // Motor drivers (6 joints)
   std::vector<std::shared_ptr<DMMotor>> motors_;
@@ -178,8 +227,10 @@ private:
   std::vector<double> hw_commands_;
 
   // Configuration
+  std::string can_interface_type_;  // "socketcan" or "usb_can"
   std::string can_port_;
   int can_baudrate_;
+  int serial_baudrate_;  // For USB-CAN only
   std::vector<int> motor_ids_;
   std::vector<int> master_ids_;
   std::vector<MotorType> motor_types_;

@@ -1,11 +1,12 @@
-# Example hardware configuration for DM motors using SocketCAN (Linux)
-# For USB-CAN adapter configuration, see usb_can_example.yaml
+# Example hardware configuration for DM motors using USB-CAN adapter
+# This configuration uses WitMotion USB-CAN adapter
 
-# CAN Interface Settings (SocketCAN)
+# CAN Interface Settings (USB-CAN)
 can_interface:
-  type: "socketcan"         # Interface type: "socketcan" or "usb_can" (default: socketcan)
-  port: "can0"              # CAN interface name (can0, can1, etc.)
-  baudrate: 1000000         # CAN baudrate in bps (1 Mbps)
+  type: "usb_can"           # Interface type: "socketcan" or "usb_can"
+  port: "/dev/ttyUSB0"      # Serial port for USB-CAN adapter
+  serial_baudrate: 921600   # Serial port baudrate (default: 921600)
+  can_baudrate: 1000000     # CAN bus baudrate in bps (1 Mbps)
 
 # MIT Control Parameters
 # These control the stiffness and damping of position control
@@ -50,7 +51,12 @@ motors:
     master_id: 0
     motor_type: "DM_J4310_2EC"
 
-# Notes:
+# Notes for USB-CAN:
+# - Common serial ports: /dev/ttyUSB0, /dev/ttyACM0 (Linux), COM3 (Windows)
+# - Supported serial baudrates: 9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600
+# - WitMotion USB-CAN adapter default: 921600 bps serial, 1000000 bps CAN
+# - Make sure to give user permissions: sudo usermod -a -G dialout $USER
+# - Or use udev rules to automatically set permissions
 # - Ensure motor IDs are unique within the CAN network
 # - master_id can be the same for all motors if using broadcast feedback
 # - Adjust kp and kd based on your mechanical system and load

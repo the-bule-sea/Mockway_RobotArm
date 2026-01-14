@@ -27,25 +27,25 @@ namespace dmmotor_hardware_interface
 {
 
 //==============================================================================
-// CANInterface Implementation
+// SocketCANInterface Implementation (Linux only)
 //==============================================================================
 
-CANInterface::CANInterface(const std::string& port, int baudrate)
-  : port_(port), baudrate_(baudrate), can_fd_(-1), running_(false)
+SocketCANInterface::SocketCANInterface(const std::string& port, int baudrate)
+  : port_(port), baudrate_(baudrate), can_fd_(-1)
 {
 }
 
-CANInterface::~CANInterface()
+SocketCANInterface::~SocketCANInterface()
 {
   close();
 }
 
-bool CANInterface::open()
+bool SocketCANInterface::open()
 {
   // Create socket
   can_fd_ = socket(PF_CAN, SOCK_RAW, CAN_RAW);
   if (can_fd_ < 0) {
-    RCLCPP_ERROR(rclcpp::get_logger("CANInterface"), "Failed to create CAN socket");
+    RCLCPP_ERROR(rclcpp::get_logger("SocketCANInterface"), "Failed to create CAN socket");
     return false;
   }
 
@@ -59,7 +59,7 @@ bool CANInterface::open()
   ifr.ifr_name[IFNAMSIZ - 1] = '\0';
 
   if (ioctl(can_fd_, SIOCGIFINDEX, &ifr) < 0) {
-    RCLCPP_ERROR(rclcpp::get_logger("CANInterface"),
+    RCLCPP_ERROR(rclcpp::get_logger("SocketCANInterface"),
                  "Failed to get interface %s index", port_.c_str());
     ::close(can_fd_);
     can_fd_ = -1;
@@ -72,7 +72,7 @@ bool CANInterface::open()
   addr.can_ifindex = ifr.ifr_ifindex;
 
   if (bind(can_fd_, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-    RCLCPP_ERROR(rclcpp::get_logger("CANInterface"),
+    RCLCPP_ERROR(rclcpp::get_logger("SocketCANInterface"),
                  "Failed to bind CAN socket to %s", port_.c_str());
     ::close(can_fd_);
     can_fd_ = -1;
@@ -81,14 +81,14 @@ bool CANInterface::open()
 
   // Start receive thread
   running_ = true;
-  rx_thread_ = std::thread(&CANInterface::receiveLoop, this);
+  rx_thread_ = std::thread(&SocketCANInterface::receiveLoop, this);
 
-  RCLCPP_INFO(rclcpp::get_logger("CANInterface"),
-              "CAN interface opened: %s", port_.c_str());
+  RCLCPP_INFO(rclcpp::get_logger("SocketCANInterface"),
+              "SocketCAN interface opened: %s", port_.c_str());
   return true;
 }
 
-void CANInterface::close()
+void SocketCANInterface::close()
 {
   running_ = false;
   if (rx_thread_.joinable()) {
@@ -98,10 +98,10 @@ void CANInterface::close()
     ::close(can_fd_);
     can_fd_ = -1;
   }
-  RCLCPP_INFO(rclcpp::get_logger("CANInterface"), "CAN interface closed");
+  RCLCPP_INFO(rclcpp::get_logger("SocketCANInterface"), "SocketCAN interface closed");
 }
 
-bool CANInterface::sendFrame(const CANFrame& frame)
+bool SocketCANInterface::sendFrame(const CANFrame& frame)
 {
   if (can_fd_ < 0) {
     return false;
@@ -119,13 +119,13 @@ bool CANInterface::sendFrame(const CANFrame& frame)
   return nbytes == sizeof(can_frame);
 }
 
-void CANInterface::setReceiveCallback(std::function<void(const CANFrame&)> callback)
+void SocketCANInterface::setReceiveCallback(std::function<void(const CANFrame&)> callback)
 {
   std::lock_guard<std::mutex> lock(mutex_);
   rx_callback_ = callback;
 }
 
-void CANInterface::receiveLoop()
+void SocketCANInterface::receiveLoop()
 {
   struct can_frame can_frame;
 
@@ -154,10 +154,342 @@ void CANInterface::receiveLoop()
 }
 
 //==============================================================================
+// USBCANInterface Implementation (WitMotion USB-CAN adapter)
+//==============================================================================
+
+#include <termios.h>
+
+USBCANInterface::USBCANInterface(const std::string& port, int serial_baudrate, int can_baudrate)
+  : port_(port), serial_baudrate_(serial_baudrate), can_baudrate_(can_baudrate), serial_fd_(-1)
+{
+}
+
+USBCANInterface::~USBCANInterface()
+{
+  close();
+}
+
+bool USBCANInterface::open()
+{
+  // Open serial port
+  serial_fd_ = ::open(port_.c_str(), O_RDWR | O_NOCTTY);
+  if (serial_fd_ < 0) {
+    RCLCPP_ERROR(rclcpp::get_logger("USBCANInterface"),
+                 "Failed to open serial port %s", port_.c_str());
+    return false;
+  }
+
+  // Configure serial port
+  struct termios tty;
+  if (tcgetattr(serial_fd_, &tty) != 0) {
+    RCLCPP_ERROR(rclcpp::get_logger("USBCANInterface"), "Failed to get serial attributes");
+    ::close(serial_fd_);
+    serial_fd_ = -1;
+    return false;
+  }
+
+  // Set baud rate
+  speed_t baud;
+  switch (serial_baudrate_) {
+    case 9600: baud = B9600; break;
+    case 19200: baud = B19200; break;
+    case 38400: baud = B38400; break;
+    case 57600: baud = B57600; break;
+    case 115200: baud = B115200; break;
+    case 230400: baud = B230400; break;
+    case 460800: baud = B460800; break;
+    case 921600: baud = B921600; break;
+    default:
+      RCLCPP_ERROR(rclcpp::get_logger("USBCANInterface"),
+                   "Unsupported baud rate: %d", serial_baudrate_);
+      ::close(serial_fd_);
+      serial_fd_ = -1;
+      return false;
+  }
+
+  cfsetospeed(&tty, baud);
+  cfsetispeed(&tty, baud);
+
+  // 8N1 mode
+  tty.c_cflag &= ~PARENB;
+  tty.c_cflag &= ~CSTOPB;
+  tty.c_cflag &= ~CSIZE;
+  tty.c_cflag |= CS8;
+  tty.c_cflag &= ~CRTSCTS;
+  tty.c_cflag |= CREAD | CLOCAL;
+
+  // Raw mode
+  tty.c_lflag &= ~(ICANON | ECHO | ECHOE | ECHONL | ISIG);
+  tty.c_iflag &= ~(IXON | IXOFF | IXANY);
+  tty.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL);
+  tty.c_oflag &= ~OPOST;
+  tty.c_oflag &= ~ONLCR;
+
+  // Timeout settings
+  tty.c_cc[VTIME] = 1;  // 0.1 seconds
+  tty.c_cc[VMIN] = 0;
+
+  if (tcsetattr(serial_fd_, TCSANOW, &tty) != 0) {
+    RCLCPP_ERROR(rclcpp::get_logger("USBCANInterface"), "Failed to set serial attributes");
+    ::close(serial_fd_);
+    serial_fd_ = -1;
+    return false;
+  }
+
+  // Flush buffers
+  tcflush(serial_fd_, TCIOFLUSH);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  // Enter AT mode
+  if (!enterATMode()) {
+    RCLCPP_WARN(rclcpp::get_logger("USBCANInterface"),
+                "Warning: Failed to enter AT mode, continuing anyway...");
+  }
+
+  // Start receive thread
+  running_ = true;
+  rx_thread_ = std::thread(&USBCANInterface::receiveLoop, this);
+
+  RCLCPP_INFO(rclcpp::get_logger("USBCANInterface"),
+              "USB-CAN interface opened: %s (serial: %d bps, CAN: %d bps)",
+              port_.c_str(), serial_baudrate_, can_baudrate_);
+  return true;
+}
+
+void USBCANInterface::close()
+{
+  running_ = false;
+  if (rx_thread_.joinable()) {
+    rx_thread_.join();
+  }
+  if (serial_fd_ >= 0) {
+    ::close(serial_fd_);
+    serial_fd_ = -1;
+  }
+  RCLCPP_INFO(rclcpp::get_logger("USBCANInterface"), "USB-CAN interface closed");
+}
+
+bool USBCANInterface::sendFrame(const CANFrame& frame)
+{
+  if (serial_fd_ < 0) {
+    return false;
+  }
+
+  if (frame.len > 8) {
+    RCLCPP_ERROR(rclcpp::get_logger("USBCANInterface"),
+                 "CAN data length cannot exceed 8 bytes");
+    return false;
+  }
+
+  // Build frame ID bytes (standard frame, ID in high 11 bits)
+  uint32_t raw_id = (frame.id & 0x7FF) << 21 | (0x00 << 1);
+
+  // Build AT command frame
+  // Format: "AT"(2) + ID_TYPE(4) + Length(1) + Data(0-8) + "\r\n"(2)
+  std::vector<uint8_t> at_frame;
+  at_frame.push_back('A');
+  at_frame.push_back('T');
+
+  // Add ID bytes (big-endian)
+  at_frame.push_back((raw_id >> 24) & 0xFF);
+  at_frame.push_back((raw_id >> 16) & 0xFF);
+  at_frame.push_back((raw_id >> 8) & 0xFF);
+  at_frame.push_back(raw_id & 0xFF);
+
+  // Add length
+  at_frame.push_back(frame.len);
+
+  // Add data
+  for (uint8_t i = 0; i < frame.len; ++i) {
+    at_frame.push_back(frame.data[i]);
+  }
+
+  // Add terminator
+  at_frame.push_back('\r');
+  at_frame.push_back('\n');
+
+  std::lock_guard<std::mutex> lock(mutex_);
+  ssize_t nbytes = write(serial_fd_, at_frame.data(), at_frame.size());
+
+  return nbytes == static_cast<ssize_t>(at_frame.size());
+}
+
+void USBCANInterface::setReceiveCallback(std::function<void(const CANFrame&)> callback)
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  rx_callback_ = callback;
+}
+
+bool USBCANInterface::sendATCommand(const std::string& cmd, bool wait_response)
+{
+  if (serial_fd_ < 0) {
+    return false;
+  }
+
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  // Flush input buffer
+  tcflush(serial_fd_, TCIFLUSH);
+
+  // Send command
+  std::string full_cmd = cmd + "\r\n";
+  ssize_t nbytes = write(serial_fd_, full_cmd.c_str(), full_cmd.length());
+
+  if (!wait_response) {
+    return nbytes == static_cast<ssize_t>(full_cmd.length());
+  }
+
+  // Wait for response
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  char buffer[256];
+  ssize_t n = read(serial_fd_, buffer, sizeof(buffer) - 1);
+  if (n > 0) {
+    buffer[n] = '\0';
+    std::string response(buffer);
+    return response.find("OK") != std::string::npos;
+  }
+
+  return false;
+}
+
+bool USBCANInterface::enterATMode()
+{
+  bool result = sendATCommand("AT+AT", true);
+  if (result) {
+    RCLCPP_INFO(rclcpp::get_logger("USBCANInterface"), "Entered AT mode");
+  }
+  return result;
+}
+
+void USBCANInterface::receiveLoop()
+{
+  uint8_t buffer[256];
+
+  while (running_) {
+    if (serial_fd_ < 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      continue;
+    }
+
+    ssize_t nbytes = read(serial_fd_, buffer, sizeof(buffer));
+
+    if (nbytes > 0) {
+      for (ssize_t i = 0; i < nbytes; ++i) {
+        rx_buffer_.push_back(buffer[i]);
+      }
+      processRxBuffer();
+    } else {
+      std::this_thread::sleep_for(std::chrono::microseconds(100));
+    }
+  }
+}
+
+void USBCANInterface::processRxBuffer()
+{
+  // Process AT command response frames
+  // Format: AT(2) + ID_TYPE(4) + Length(1) + Data(0-8) + \r\n(2)
+
+  while (rx_buffer_.size() >= 9) {  // Minimum frame length
+    // Find "AT" header
+    auto it = std::find(rx_buffer_.begin(), rx_buffer_.end(), 'A');
+    if (it == rx_buffer_.end()) {
+      rx_buffer_.clear();
+      return;
+    }
+
+    // Move "AT" to beginning
+    size_t offset = std::distance(rx_buffer_.begin(), it);
+    if (offset > 0) {
+      rx_buffer_.erase(rx_buffer_.begin(), it);
+    }
+
+    if (rx_buffer_.size() < 2) {
+      return;
+    }
+
+    if (rx_buffer_[0] != 'A' || rx_buffer_[1] != 'T') {
+      rx_buffer_.erase(rx_buffer_.begin());
+      continue;
+    }
+
+    if (rx_buffer_.size() < 7) {  // AT(2) + ID_TYPE(4) + Length(1)
+      return;
+    }
+
+    // Parse frame length
+    uint8_t data_len = rx_buffer_[6];
+    if (data_len > 8) {
+      rx_buffer_.erase(rx_buffer_.begin());
+      continue;
+    }
+
+    size_t frame_len = 2 + 4 + 1 + data_len + 2;  // AT + ID_TYPE + Length + Data + \r\n
+
+    if (rx_buffer_.size() < frame_len) {
+      return;  // Wait for more data
+    }
+
+    // Extract frame
+    std::vector<uint8_t> frame(rx_buffer_.begin(), rx_buffer_.begin() + frame_len);
+    rx_buffer_.erase(rx_buffer_.begin(), rx_buffer_.begin() + frame_len);
+
+    // Verify frame ending
+    if (frame[frame_len - 2] == '\r' && frame[frame_len - 1] == '\n') {
+      // Remove \r\n before parsing
+      frame.resize(frame_len - 2);
+      parseCANFrame(frame);
+    }
+  }
+}
+
+void USBCANInterface::parseCANFrame(const std::vector<uint8_t>& frame)
+{
+  if (frame.size() < 7) {
+    return;
+  }
+
+  // Skip "AT" prefix, parse ID and type (4 bytes, big-endian)
+  uint32_t raw_id = (static_cast<uint32_t>(frame[2]) << 24) |
+                    (static_cast<uint32_t>(frame[3]) << 16) |
+                    (static_cast<uint32_t>(frame[4]) << 8) |
+                    static_cast<uint32_t>(frame[5]);
+
+  // Check frame type (bit 2: 0=standard, 1=extended)
+  bool is_extended = (raw_id & 0x04) != 0;
+
+  uint32_t frame_id;
+  if (is_extended) {
+    // Extended frame, ID in high 29 bits
+    frame_id = (raw_id >> 3) & 0x1FFFFFFF;
+  } else {
+    // Standard frame, ID in high 11 bits
+    frame_id = (raw_id >> 21) & 0x7FF;
+  }
+
+  uint8_t data_len = frame[6];
+
+  // Create CAN frame
+  CANFrame can_frame;
+  can_frame.id = frame_id;
+  can_frame.len = data_len;
+
+  if (data_len > 0 && frame.size() >= 7 + data_len) {
+    std::memcpy(can_frame.data, &frame[7], data_len);
+  }
+
+  // Call callback
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (rx_callback_) {
+    rx_callback_(can_frame);
+  }
+}
+
+//==============================================================================
 // DMMotor Implementation
 //==============================================================================
 
-DMMotor::DMMotor(std::shared_ptr<CANInterface> can, const MotorConfig& config)
+DMMotor::DMMotor(std::shared_ptr<CANInterfaceBase> can, const MotorConfig& config)
   : can_(can), config_(config)
 {
   // Register CAN receive callback
@@ -354,9 +686,25 @@ hardware_interface::CallbackReturn DMMototHardwareInterface::on_init(
 
   logger_ = rclcpp::get_logger("DMMototHardwareInterface");
 
+  // Read CAN interface type (default: socketcan)
+  auto it = info_.hardware_parameters.find("can_interface_type");
+  if (it != info_.hardware_parameters.end()) {
+    can_interface_type_ = it->second;
+  } else {
+    can_interface_type_ = "socketcan";
+  }
+
   // Read CAN port configuration
   can_port_ = info_.hardware_parameters["can_port"];
   can_baudrate_ = std::stoi(info_.hardware_parameters["can_baudrate"]);
+
+  // Read serial baudrate for USB-CAN (default: 921600)
+  auto serial_baud_it = info_.hardware_parameters.find("serial_baudrate");
+  if (serial_baud_it != info_.hardware_parameters.end()) {
+    serial_baudrate_ = std::stoi(serial_baud_it->second);
+  } else {
+    serial_baudrate_ = 921600;
+  }
 
   // Read control parameters
   position_kp_ = std::stod(info_.hardware_parameters["position_kp"]);
@@ -384,8 +732,8 @@ hardware_interface::CallbackReturn DMMototHardwareInterface::on_init(
   hw_velocities_.resize(info_.joints.size(), 0.0);
   hw_commands_.resize(info_.joints.size(), 0.0);
 
-  RCLCPP_INFO(logger_, "DMMototHardwareInterface initialized with %zu joints",
-              info_.joints.size());
+  RCLCPP_INFO(logger_, "DMMototHardwareInterface initialized with %zu joints, CAN interface type: %s",
+              info_.joints.size(), can_interface_type_.c_str());
 
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -395,8 +743,18 @@ hardware_interface::CallbackReturn DMMototHardwareInterface::on_configure(
 {
   RCLCPP_INFO(logger_, "Configuring DMMototHardwareInterface...");
 
-  // Create CAN interface
-  can_interface_ = std::make_shared<CANInterface>(can_port_, can_baudrate_);
+  // Create CAN interface based on type
+  if (can_interface_type_ == "usb_can") {
+    RCLCPP_INFO(logger_, "Creating USB-CAN interface");
+    can_interface_ = std::make_shared<USBCANInterface>(can_port_, serial_baudrate_, can_baudrate_);
+  } else if (can_interface_type_ == "socketcan") {
+    RCLCPP_INFO(logger_, "Creating SocketCAN interface");
+    can_interface_ = std::make_shared<SocketCANInterface>(can_port_, can_baudrate_);
+  } else {
+    RCLCPP_ERROR(logger_, "Unknown CAN interface type: %s (supported: socketcan, usb_can)",
+                 can_interface_type_.c_str());
+    return hardware_interface::CallbackReturn::ERROR;
+  }
 
   if (!can_interface_->open()) {
     RCLCPP_ERROR(logger_, "Failed to open CAN interface %s", can_port_.c_str());
