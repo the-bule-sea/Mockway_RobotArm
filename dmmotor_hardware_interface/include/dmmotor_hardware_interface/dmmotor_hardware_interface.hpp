@@ -239,6 +239,9 @@ private:
   std::vector<double> position_kp_;
   std::vector<double> position_kd_;
 
+  // Simulation flags (per-joint)
+  std::vector<bool> simulated_;
+
   // Logging
   rclcpp::Logger logger_;
 };

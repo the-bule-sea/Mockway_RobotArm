@@ -23,6 +23,7 @@
                 <param name="motor_type">DM_J4310_2EC</param>
                 <param name="position_kp">40.0</param>
                 <param name="position_kd">1.0</param>
+                <param name="simulated">false</param>
             </joint>
             <!-- Joint 2: DM4340 -->
             <joint name="joint2">
@@ -36,6 +37,7 @@
                 <param name="motor_type">DM4340</param>
                 <param name="position_kp">40.0</param>
                 <param name="position_kd">1.0</param>
+                <param name="simulated">false</param>
             </joint>
             <!-- Joint 3: DM4340 -->
             <joint name="joint3">
@@ -49,6 +51,7 @@
                 <param name="motor_type">DM4340</param>
                 <param name="position_kp">40.0</param>
                 <param name="position_kd">1.0</param>
+                <param name="simulated">false</param>
             </joint>
             <!-- Joint 4: DM-J4310-2EC -->
             <joint name="joint4">
@@ -62,6 +65,7 @@
                 <param name="motor_type">DM_J4310_2EC</param>
                 <param name="position_kp">40.0</param>
                 <param name="position_kd">1.0</param>
+                <param name="simulated">false</param>
             </joint>
             <!-- Joint 5: DM-J4310-2EC -->
             <joint name="joint5">
@@ -75,6 +79,7 @@
                 <param name="motor_type">DM_J4310_2EC</param>
                 <param name="position_kp">40.0</param>
                 <param name="position_kd">1.0</param>
+                <param name="simulated">false</param>
             </joint>
             <!-- Joint 6: DM-J4310-2EC -->
             <joint name="joint6">
@@ -88,6 +93,7 @@
                 <param name="motor_type">DM_J4310_2EC</param>
                 <param name="position_kp">40.0</param>
                 <param name="position_kd">1.0</param>
+                <param name="simulated">false</param>
             </joint>
 
         </ros2_control>

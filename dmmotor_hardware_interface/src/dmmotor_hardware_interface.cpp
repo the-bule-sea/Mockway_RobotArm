@@ -712,6 +712,7 @@ hardware_interface::CallbackReturn DMMototHardwareInterface::on_init(
   motor_types_.resize(info_.joints.size());
   position_kp_.resize(info_.joints.size());
   position_kd_.resize(info_.joints.size());
+  simulated_.resize(info_.joints.size());
 
   for (size_t i = 0; i < info_.joints.size(); ++i) {
     motor_ids_[i] = std::stoi(info_.joints[i].parameters.at("motor_id"));
@@ -727,6 +728,10 @@ hardware_interface::CallbackReturn DMMototHardwareInterface::on_init(
     // Read per-joint control parameters
     position_kp_[i] = std::stod(info_.joints[i].parameters.at("position_kp"));
     position_kd_[i] = std::stod(info_.joints[i].parameters.at("position_kd"));
+
+    // Read simulation flag
+    std::string simulated_str = info_.joints[i].parameters.at("simulated");
+    simulated_[i] = (simulated_str == "true" || simulated_str == "True" || simulated_str == "1");
   }
 
   // Initialize state vectors
@@ -788,9 +793,10 @@ hardware_interface::CallbackReturn DMMototHardwareInterface::on_configure(
 
     motors_.push_back(std::make_shared<DMMotor>(can_interface_, config));
 
-    RCLCPP_INFO(logger_, "Configured motor for joint %s: ID=%d, Type=%s",
+    RCLCPP_INFO(logger_, "Configured motor for joint %s: ID=%d, Type=%s, Simulated=%s",
                 info_.joints[i].name.c_str(), config.motor_id,
-                config.type == MotorType::DM4340 ? "DM4340" : "DM-J4310-2EC");
+                config.type == MotorType::DM4340 ? "DM4340" : "DM-J4310-2EC",
+                simulated_[i] ? "true" : "false");
   }
 
   RCLCPP_INFO(logger_, "DMMototHardwareInterface configured successfully");
@@ -833,8 +839,13 @@ hardware_interface::CallbackReturn DMMototHardwareInterface::on_activate(
 {
   RCLCPP_INFO(logger_, "Activating DMMototHardwareInterface...");
 
-  // Enable all motors
+  // Enable all real (non-simulated) motors
   for (size_t i = 0; i < motors_.size(); ++i) {
+    if (simulated_[i]) {
+      RCLCPP_INFO(logger_, "Joint %s is simulated, skipping enable",
+                  info_.joints[i].name.c_str());
+      continue;
+    }
     if (!motors_[i]->enable()) {
       RCLCPP_ERROR(logger_, "Failed to enable motor %zu", i);
       return hardware_interface::CallbackReturn::ERROR;
@@ -847,13 +858,21 @@ hardware_interface::CallbackReturn DMMototHardwareInterface::on_activate(
 
   // Read initial positions
   for (size_t i = 0; i < motors_.size(); ++i) {
-    MotorState state = motors_[i]->getState();
-    hw_positions_[i] = state.position;
-    hw_velocities_[i] = state.velocity;
-    hw_commands_[i] = state.position;  // Initialize command to current position
+    if (simulated_[i]) {
+      // For simulated joints, initialize to 0
+      hw_positions_[i] = 0.0;
+      hw_velocities_[i] = 0.0;
+      hw_commands_[i] = 0.0;
+    } else {
+      MotorState state = motors_[i]->getState();
+      hw_positions_[i] = state.position;
+      hw_velocities_[i] = state.velocity;
+      hw_commands_[i] = state.position;  // Initialize command to current position
+    }
 
-    RCLCPP_INFO(logger_, "Joint %s initial position: %.4f rad",
-                info_.joints[i].name.c_str(), hw_positions_[i]);
+    RCLCPP_INFO(logger_, "Joint %s initial position: %.4f rad%s",
+                info_.joints[i].name.c_str(), hw_positions_[i],
+                simulated_[i] ? " (simulated)" : "");
   }
 
   RCLCPP_INFO(logger_, "DMMototHardwareInterface activated successfully");
@@ -865,8 +884,11 @@ hardware_interface::CallbackReturn DMMototHardwareInterface::on_deactivate(
 {
   RCLCPP_INFO(logger_, "Deactivating DMMototHardwareInterface...");
 
-  // Disable all motors
+  // Disable all real (non-simulated) motors
   for (size_t i = 0; i < motors_.size(); ++i) {
+    if (simulated_[i]) {
+      continue;
+    }
     motors_[i]->disable();
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }
@@ -880,6 +902,13 @@ hardware_interface::return_type DMMototHardwareInterface::read(
 {
   // Read motor states
   for (size_t i = 0; i < motors_.size(); ++i) {
+    if (simulated_[i]) {
+      // For simulated joints, position follows command directly
+      hw_positions_[i] = hw_commands_[i];
+      hw_velocities_[i] = 0.0;
+      continue;
+    }
+
     MotorState state = motors_[i]->getState();
     hw_positions_[i] = state.position;
     hw_velocities_[i] = state.velocity;
@@ -899,6 +928,11 @@ hardware_interface::return_type DMMototHardwareInterface::write(
 {
   // Send commands to motors using MIT mode
   for (size_t i = 0; i < motors_.size(); ++i) {
+    if (simulated_[i]) {
+      // Simulated joints don't need CAN commands
+      continue;
+    }
+
     // Use MIT control with position command (per-joint kp/kd)
     motors_[i]->controlMIT(
       hw_commands_[i],     // target position
