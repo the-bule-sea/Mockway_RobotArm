@@ -1,746 +1,209 @@
-// Copyright (c) 2025, Mockway Robotics
-// Licensed under the MIT License
+#ifndef DAMIAO_HARDWARE_INTERFACE_HPP
+#define DAMIAO_HARDWARE_INTERFACE_HPP
 
-#include "dmmotor_hardware_interface/dmmotor_hardware_interface.hpp"
-
-#include <chrono>
-#include <cmath>
-#include <limits>
 #include <memory>
-#include <vector>
 #include <string>
+#include <vector>
+#include <chrono>
 
-// For SocketCAN (Linux)
+#include "hardware_interface/handle.hpp"
+#include "hardware_interface/hardware_info.hpp"
+#include "hardware_interface/system_interface.hpp"
+#include "hardware_interface/types/hardware_interface_return_values.hpp"
+#include "hardware_interface/types/hardware_interface_type_values.hpp"
+#include "rclcpp/macros.hpp"
+#include "rclcpp/rclcpp.hpp"
+
+// CAN通信相关头文件
 #include <linux/can.h>
 #include <linux/can/raw.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
 #include <unistd.h>
-#include <fcntl.h>
 #include <cstring>
-
-#include "hardware_interface/types/hardware_interface_type_values.hpp"
-#include "rclcpp/rclcpp.hpp"
+#include <fcntl.h>    // O_NONBLOCK 定义在此
 
 namespace dmmotor_hardware_interface
 {
 
-//==============================================================================
-// SocketCANInterface Implementation (Linux only)
-//==============================================================================
-
-SocketCANInterface::SocketCANInterface(const std::string& port, int baudrate)
-  : port_(port), baudrate_(baudrate), can_fd_(-1)
+class DMMototHardwareInterface : public hardware_interface::SystemInterface
 {
-}
-
-SocketCANInterface::~SocketCANInterface()
-{
-  close();
-}
-
-bool SocketCANInterface::open()
-{
-  // Create socket
-  can_fd_ = socket(PF_CAN, SOCK_RAW, CAN_RAW);
-  if (can_fd_ < 0) {
-    RCLCPP_ERROR(rclcpp::get_logger("SocketCANInterface"), "Failed to create CAN socket");
-    return false;
-  }
-
-  // Set non-blocking mode
-  int flags = fcntl(can_fd_, F_GETFL, 0);
-  fcntl(can_fd_, F_SETFL, flags | O_NONBLOCK);
-
-  // Bind to CAN interface
-  struct ifreq ifr;
-  std::strncpy(ifr.ifr_name, port_.c_str(), IFNAMSIZ - 1);
-  ifr.ifr_name[IFNAMSIZ - 1] = '\0';
-
-  if (ioctl(can_fd_, SIOCGIFINDEX, &ifr) < 0) {
-    RCLCPP_ERROR(rclcpp::get_logger("SocketCANInterface"),
-                 "Failed to get interface %s index", port_.c_str());
-    ::close(can_fd_);
-    can_fd_ = -1;
-    return false;
-  }
-
-  struct sockaddr_can addr;
-  std::memset(&addr, 0, sizeof(addr));
-  addr.can_family = AF_CAN;
-  addr.can_ifindex = ifr.ifr_ifindex;
-
-  if (bind(can_fd_, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-    RCLCPP_ERROR(rclcpp::get_logger("SocketCANInterface"),
-                 "Failed to bind CAN socket to %s", port_.c_str());
-    ::close(can_fd_);
-    can_fd_ = -1;
-    return false;
-  }
-
-  // Start receive thread
-  running_ = true;
-  rx_thread_ = std::thread(&SocketCANInterface::receiveLoop, this);
-
-  RCLCPP_INFO(rclcpp::get_logger("SocketCANInterface"),
-              "SocketCAN interface opened: %s", port_.c_str());
-  return true;
-}
-
-void SocketCANInterface::close()
-{
-  running_ = false;
-  if (rx_thread_.joinable()) {
-    rx_thread_.join();
-  }
-  if (can_fd_ >= 0) {
-    ::close(can_fd_);
-    can_fd_ = -1;
-  }
-  RCLCPP_INFO(rclcpp::get_logger("SocketCANInterface"), "SocketCAN interface closed");
-}
-
-bool SocketCANInterface::sendFrame(const CANFrame& frame)
-{
-  if (can_fd_ < 0) {
-    return false;
-  }
-
-  struct can_frame can_frame;
-  std::memset(&can_frame, 0, sizeof(can_frame));
-  can_frame.can_id = frame.id;
-  can_frame.can_dlc = frame.len;
-  std::memcpy(can_frame.data, frame.data, frame.len);
-
-  std::lock_guard<std::mutex> lock(mutex_);
-  ssize_t nbytes = write(can_fd_, &can_frame, sizeof(can_frame));
-
-  return nbytes == sizeof(can_frame);
-}
-
-void SocketCANInterface::setReceiveCallback(std::function<void(const CANFrame&)> callback)
-{
-  std::lock_guard<std::mutex> lock(mutex_);
-  rx_callback_ = callback;
-}
-
-void SocketCANInterface::receiveLoop()
-{
-  struct can_frame can_frame;
-
-  while (running_) {
-    if (can_fd_ < 0) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
-      continue;
-    }
-
-    ssize_t nbytes = read(can_fd_, &can_frame, sizeof(can_frame));
-
-    if (nbytes > 0 && nbytes == sizeof(can_frame)) {
-      CANFrame frame;
-      frame.id = can_frame.can_id;
-      frame.len = can_frame.can_dlc;
-      std::memcpy(frame.data, can_frame.data, can_frame.can_dlc);
-
-      std::lock_guard<std::mutex> lock(mutex_);
-      if (rx_callback_) {
-        rx_callback_(frame);
-      }
-    } else {
-      std::this_thread::sleep_for(std::chrono::microseconds(100));
-    }
-  }
-}
-
-//==============================================================================
-// USBCANInterface Implementation (WitMotion USB-CAN adapter)
-//==============================================================================
-
-#include <termios.h>
-
-USBCANInterface::USBCANInterface(const std::string& port, int serial_baudrate, int can_baudrate)
-  : port_(port), serial_baudrate_(serial_baudrate), can_baudrate_(can_baudrate), serial_fd_(-1)
-{
-}
-
-USBCANInterface::~USBCANInterface()
-{
-  close();
-}
-
-bool USBCANInterface::open()
-{
-  // Open serial port
-  serial_fd_ = ::open(port_.c_str(), O_RDWR | O_NOCTTY);
-  if (serial_fd_ < 0) {
-    RCLCPP_ERROR(rclcpp::get_logger("USBCANInterface"),
-                 "Failed to open serial port %s", port_.c_str());
-    return false;
-  }
-
-  // Configure serial port
-  struct termios tty;
-  if (tcgetattr(serial_fd_, &tty) != 0) {
-    RCLCPP_ERROR(rclcpp::get_logger("USBCANInterface"), "Failed to get serial attributes");
-    ::close(serial_fd_);
-    serial_fd_ = -1;
-    return false;
-  }
-
-  // Set baud rate
-  speed_t baud;
-  switch (serial_baudrate_) {
-    case 9600: baud = B9600; break;
-    case 19200: baud = B19200; break;
-    case 38400: baud = B38400; break;
-    case 57600: baud = B57600; break;
-    case 115200: baud = B115200; break;
-    case 230400: baud = B230400; break;
-    case 460800: baud = B460800; break;
-    case 921600: baud = B921600; break;
-    default:
-      RCLCPP_ERROR(rclcpp::get_logger("USBCANInterface"),
-                   "Unsupported baud rate: %d", serial_baudrate_);
-      ::close(serial_fd_);
-      serial_fd_ = -1;
-      return false;
-  }
-
-  cfsetospeed(&tty, baud);
-  cfsetispeed(&tty, baud);
-
-  // 8N1 mode
-  tty.c_cflag &= ~PARENB;
-  tty.c_cflag &= ~CSTOPB;
-  tty.c_cflag &= ~CSIZE;
-  tty.c_cflag |= CS8;
-  tty.c_cflag &= ~CRTSCTS;
-  tty.c_cflag |= CREAD | CLOCAL;
-
-  // Raw mode
-  tty.c_lflag &= ~(ICANON | ECHO | ECHOE | ECHONL | ISIG);
-  tty.c_iflag &= ~(IXON | IXOFF | IXANY);
-  tty.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL);
-  tty.c_oflag &= ~OPOST;
-  tty.c_oflag &= ~ONLCR;
-
-  // Timeout settings
-  tty.c_cc[VTIME] = 1;  // 0.1 seconds
-  tty.c_cc[VMIN] = 0;
-
-  if (tcsetattr(serial_fd_, TCSANOW, &tty) != 0) {
-    RCLCPP_ERROR(rclcpp::get_logger("USBCANInterface"), "Failed to set serial attributes");
-    ::close(serial_fd_);
-    serial_fd_ = -1;
-    return false;
-  }
-
-  // Flush buffers
-  tcflush(serial_fd_, TCIOFLUSH);
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-  // Enter AT mode
-  if (!enterATMode()) {
-    RCLCPP_WARN(rclcpp::get_logger("USBCANInterface"),
-                "Warning: Failed to enter AT mode, continuing anyway...");
-  }
-
-  // Start receive thread
-  running_ = true;
-  rx_thread_ = std::thread(&USBCANInterface::receiveLoop, this);
-
-  RCLCPP_INFO(rclcpp::get_logger("USBCANInterface"),
-              "USB-CAN interface opened: %s (serial: %d bps, CAN: %d bps)",
-              port_.c_str(), serial_baudrate_, can_baudrate_);
-  return true;
-}
-
-void USBCANInterface::close()
-{
-  running_ = false;
-  if (rx_thread_.joinable()) {
-    rx_thread_.join();
-  }
-  if (serial_fd_ >= 0) {
-    ::close(serial_fd_);
-    serial_fd_ = -1;
-  }
-  RCLCPP_INFO(rclcpp::get_logger("USBCANInterface"), "USB-CAN interface closed");
-}
-
-bool USBCANInterface::sendFrame(const CANFrame& frame)
-{
-  if (serial_fd_ < 0) {
-    return false;
-  }
-
-  if (frame.len > 8) {
-    RCLCPP_ERROR(rclcpp::get_logger("USBCANInterface"),
-                 "CAN data length cannot exceed 8 bytes");
-    return false;
-  }
-
-  // Build frame ID bytes (standard frame, ID in high 11 bits)
-  uint32_t raw_id = (frame.id & 0x7FF) << 21 | (0x00 << 1);
-
-  // Build AT command frame
-  // Format: "AT"(2) + ID_TYPE(4) + Length(1) + Data(0-8) + "\r\n"(2)
-  std::vector<uint8_t> at_frame;
-  at_frame.push_back('A');
-  at_frame.push_back('T');
-
-  // Add ID bytes (big-endian)
-  at_frame.push_back((raw_id >> 24) & 0xFF);
-  at_frame.push_back((raw_id >> 16) & 0xFF);
-  at_frame.push_back((raw_id >> 8) & 0xFF);
-  at_frame.push_back(raw_id & 0xFF);
-
-  // Add length
-  at_frame.push_back(frame.len);
-
-  // Add data
-  for (uint8_t i = 0; i < frame.len; ++i) {
-    at_frame.push_back(frame.data[i]);
-  }
-
-  // Add terminator
-  at_frame.push_back('\r');
-  at_frame.push_back('\n');
-
-  std::lock_guard<std::mutex> lock(mutex_);
-  ssize_t nbytes = write(serial_fd_, at_frame.data(), at_frame.size());
-
-  return nbytes == static_cast<ssize_t>(at_frame.size());
-}
-
-void USBCANInterface::setReceiveCallback(std::function<void(const CANFrame&)> callback)
-{
-  std::lock_guard<std::mutex> lock(mutex_);
-  rx_callback_ = callback;
-}
-
-bool USBCANInterface::sendATCommand(const std::string& cmd, bool wait_response)
-{
-  if (serial_fd_ < 0) {
-    return false;
-  }
-
-  std::lock_guard<std::mutex> lock(mutex_);
-
-  // Flush input buffer
-  tcflush(serial_fd_, TCIFLUSH);
-
-  // Send command
-  std::string full_cmd = cmd + "\r\n";
-  ssize_t nbytes = write(serial_fd_, full_cmd.c_str(), full_cmd.length());
-
-  if (!wait_response) {
-    return nbytes == static_cast<ssize_t>(full_cmd.length());
-  }
-
-  // Wait for response
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-  char buffer[256];
-  ssize_t n = read(serial_fd_, buffer, sizeof(buffer) - 1);
-  if (n > 0) {
-    buffer[n] = '\0';
-    std::string response(buffer);
-    return response.find("OK") != std::string::npos;
-  }
-
-  return false;
-}
-
-bool USBCANInterface::enterATMode()
-{
-  bool result = sendATCommand("AT+AT", true);
-  if (result) {
-    RCLCPP_INFO(rclcpp::get_logger("USBCANInterface"), "Entered AT mode");
-  }
-  return result;
-}
-
-void USBCANInterface::receiveLoop()
-{
-  uint8_t buffer[256];
-
-  while (running_) {
-    if (serial_fd_ < 0) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
-      continue;
-    }
-
-    ssize_t nbytes = read(serial_fd_, buffer, sizeof(buffer));
-
-    if (nbytes > 0) {
-      for (ssize_t i = 0; i < nbytes; ++i) {
-        rx_buffer_.push_back(buffer[i]);
-      }
-      processRxBuffer();
-    } else {
-      std::this_thread::sleep_for(std::chrono::microseconds(100));
-    }
-  }
-}
-
-void USBCANInterface::processRxBuffer()
-{
-  // Process AT command response frames
-  // Format: AT(2) + ID_TYPE(4) + Length(1) + Data(0-8) + \r\n(2)
-
-  while (rx_buffer_.size() >= 9) {  // Minimum frame length
-    // Find "AT" header
-    auto it = std::find(rx_buffer_.begin(), rx_buffer_.end(), 'A');
-    if (it == rx_buffer_.end()) {
-      rx_buffer_.clear();
-      return;
-    }
-
-    // Move "AT" to beginning
-    size_t offset = std::distance(rx_buffer_.begin(), it);
-    if (offset > 0) {
-      rx_buffer_.erase(rx_buffer_.begin(), it);
-    }
-
-    if (rx_buffer_.size() < 2) {
-      return;
-    }
-
-    if (rx_buffer_[0] != 'A' || rx_buffer_[1] != 'T') {
-      rx_buffer_.erase(rx_buffer_.begin());
-      continue;
-    }
-
-    if (rx_buffer_.size() < 7) {  // AT(2) + ID_TYPE(4) + Length(1)
-      return;
-    }
-
-    // Parse frame length
-    uint8_t data_len = rx_buffer_[6];
-    if (data_len > 8) {
-      rx_buffer_.erase(rx_buffer_.begin());
-      continue;
-    }
-
-    size_t frame_len = 2 + 4 + 1 + data_len + 2;  // AT + ID_TYPE + Length + Data + \r\n
-
-    if (rx_buffer_.size() < frame_len) {
-      return;  // Wait for more data
-    }
-
-    // Extract frame
-    std::vector<uint8_t> frame(rx_buffer_.begin(), rx_buffer_.begin() + frame_len);
-    rx_buffer_.erase(rx_buffer_.begin(), rx_buffer_.begin() + frame_len);
-
-    // Verify frame ending
-    if (frame[frame_len - 2] == '\r' && frame[frame_len - 1] == '\n') {
-      // Remove \r\n before parsing
-      frame.resize(frame_len - 2);
-      parseCANFrame(frame);
-    }
-  }
-}
-
-void USBCANInterface::parseCANFrame(const std::vector<uint8_t>& frame)
-{
-  if (frame.size() < 7) {
-    return;
-  }
-
-  // Skip "AT" prefix, parse ID and type (4 bytes, big-endian)
-  uint32_t raw_id = (static_cast<uint32_t>(frame[2]) << 24) |
-                    (static_cast<uint32_t>(frame[3]) << 16) |
-                    (static_cast<uint32_t>(frame[4]) << 8) |
-                    static_cast<uint32_t>(frame[5]);
-
-  // Check frame type (bit 2: 0=standard, 1=extended)
-  bool is_extended = (raw_id & 0x04) != 0;
-
-  uint32_t frame_id;
-  if (is_extended) {
-    // Extended frame, ID in high 29 bits
-    frame_id = (raw_id >> 3) & 0x1FFFFFFF;
-  } else {
-    // Standard frame, ID in high 11 bits
-    frame_id = (raw_id >> 21) & 0x7FF;
-  }
-
-  uint8_t data_len = frame[6];
-
-  // Create CAN frame
-  CANFrame can_frame;
-  can_frame.id = frame_id;
-  can_frame.len = data_len;
-
-  if (data_len > 0 && frame.size() >= 7 + data_len) {
-    std::memcpy(can_frame.data, &frame[7], data_len);
-  }
-
-  // Call callback
-  std::lock_guard<std::mutex> lock(mutex_);
-  if (rx_callback_) {
-    rx_callback_(can_frame);
-  }
-}
-
-//==============================================================================
-// DMMotor Implementation
-//==============================================================================
-
-DMMotor::DMMotor(std::shared_ptr<CANInterfaceBase> can, const MotorConfig& config)
-  : can_(can), config_(config)
-{
-  // Register CAN receive callback
-  can_->setReceiveCallback([this](const CANFrame& frame) {
-    this->onCANFrame(frame);
-  });
-}
-
-DMMotor::~DMMotor()
-{
-}
-
-bool DMMotor::enable()
-{
-  CANFrame frame;
-  frame.id = config_.motor_id;
-  frame.len = 8;
-  std::memcpy(frame.data, CMD_ENABLE, 8);
-
-  bool result = can_->sendFrame(frame);
-  if (result) {
-    RCLCPP_INFO(rclcpp::get_logger("DMMotor"),
-                "Motor %d enable command sent", config_.motor_id);
-  }
-  return result;
-}
-
-bool DMMotor::disable()
-{
-  CANFrame frame;
-  frame.id = config_.motor_id;
-  frame.len = 8;
-  std::memcpy(frame.data, CMD_DISABLE, 8);
-
-  bool result = can_->sendFrame(frame);
-  if (result) {
-    RCLCPP_INFO(rclcpp::get_logger("DMMotor"),
-                "Motor %d disable command sent", config_.motor_id);
-  }
-  return result;
-}
-
-bool DMMotor::clearError()
-{
-  CANFrame frame;
-  frame.id = config_.motor_id;
-  frame.len = 8;
-  std::memcpy(frame.data, CMD_CLEAR_ERROR, 8);
-
-  return can_->sendFrame(frame);
-}
-
-bool DMMotor::controlMIT(double p_des, double v_des, double kp, double kd, double t_ff)
-{
-  // Clamp values
-  p_des = std::clamp(p_des, -config_.P_MAX, config_.P_MAX);
-  v_des = std::clamp(v_des, -config_.V_MAX, config_.V_MAX);
-  kp = std::clamp(kp, 0.0, config_.KP_MAX);
-  kd = std::clamp(kd, 0.0, config_.KD_MAX);
-  t_ff = std::clamp(t_ff, -config_.T_MAX, config_.T_MAX);
-
-  // Convert to integers
-  uint16_t p_int = floatToUint(p_des, -config_.P_MAX, config_.P_MAX, 16);
-  uint16_t v_int = floatToUint(v_des, -config_.V_MAX, config_.V_MAX, 12);
-  uint16_t kp_int = floatToUint(kp, 0, 500, 12);
-  uint16_t kd_int = floatToUint(kd, 0, 5, 12);
-  uint16_t t_int = floatToUint(t_ff, -config_.T_MAX, config_.T_MAX, 12);
-
-  // Pack data
-  CANFrame frame;
-  frame.id = config_.motor_id;
-  frame.len = 8;
-  frame.data[0] = (p_int >> 8) & 0xFF;
-  frame.data[1] = p_int & 0xFF;
-  frame.data[2] = (v_int >> 4) & 0xFF;
-  frame.data[3] = ((v_int & 0x0F) << 4) | ((kp_int >> 8) & 0x0F);
-  frame.data[4] = kp_int & 0xFF;
-  frame.data[5] = (kd_int >> 4) & 0xFF;
-  frame.data[6] = ((kd_int & 0x0F) << 4) | ((t_int >> 8) & 0x0F);
-  frame.data[7] = t_int & 0xFF;
-
-  return can_->sendFrame(frame);
-}
-
-bool DMMotor::controlPositionSpeed(double position, double velocity)
-{
-  CANFrame frame;
-  frame.id = 0x100 + config_.motor_id;
-  frame.len = 8;
-
-  // Pack as float, little-endian
-  float pos_f = static_cast<float>(position);
-  float vel_f = static_cast<float>(std::abs(velocity));
-
-  std::memcpy(&frame.data[0], &pos_f, sizeof(float));
-  std::memcpy(&frame.data[4], &vel_f, sizeof(float));
-
-  return can_->sendFrame(frame);
-}
-
-bool DMMotor::controlSpeed(double velocity)
-{
-  CANFrame frame;
-  frame.id = 0x200 + config_.motor_id;
-  frame.len = 4;
-
-  float vel_f = static_cast<float>(velocity);
-  std::memcpy(&frame.data[0], &vel_f, sizeof(float));
-
-  return can_->sendFrame(frame);
-}
-
-MotorState DMMotor::getState() const
-{
-  std::lock_guard<std::mutex> lock(state_mutex_);
-  return state_;
-}
-
-void DMMotor::onCANFrame(const CANFrame& frame)
-{
-  // Check if this is feedback for this motor
-  if (frame.id != static_cast<uint32_t>(config_.master_id)) {
-    return;
-  }
-
-  if (frame.len < 8) {
-    return;
-  }
-
-  // Parse feedback data
-  uint8_t motor_id = frame.data[0] & 0x0F;
-  if (motor_id != (config_.motor_id & 0x0F)) {
-    return;
-  }
-
-  uint8_t error_code = (frame.data[0] >> 4) & 0x0F;
-
-  // Parse position (16-bit)
-  uint16_t pos_raw = (frame.data[1] << 8) | frame.data[2];
-
-  // Parse velocity (12-bit)
-  uint16_t vel_raw = (frame.data[3] << 4) | ((frame.data[4] >> 4) & 0x0F);
-
-  // Parse torque (12-bit)
-  uint16_t torque_raw = ((frame.data[4] & 0x0F) << 8) | frame.data[5];
-
-  // Convert to actual values
-  double position = uintToFloat(pos_raw, -config_.P_MAX, config_.P_MAX, 16);
-  double velocity = uintToFloat(vel_raw, -config_.V_MAX, config_.V_MAX, 12);
-  double torque = uintToFloat(torque_raw, -config_.T_MAX, config_.T_MAX, 12);
-
-  // Temperature
-  int temp_mos = frame.data[6];
-  int temp_rotor = frame.data[7];
-
-  // Update state
-  std::lock_guard<std::mutex> lock(state_mutex_);
-  state_.position = position;
-  state_.velocity = velocity;
-  state_.torque = torque;
-  state_.temperature_mos = temp_mos;
-  state_.temperature_rotor = temp_rotor;
-  state_.enabled = (error_code == 0x1);
-  state_.error_code = error_code;
-}
-
-uint16_t DMMotor::floatToUint(double x, double x_min, double x_max, int bits)
-{
-  x = std::clamp(x, x_min, x_max);
-  double span = x_max - x_min;
-  double data_norm = (x - x_min) / span;
-  return static_cast<uint16_t>(data_norm * ((1 << bits) - 1));
-}
-
-double DMMotor::uintToFloat(uint16_t x, double min, double max, int bits)
-{
-  double span = max - min;
-  double data_norm = static_cast<double>(x) / ((1 << bits) - 1);
-  return data_norm * span + min;
-}
-
-//==============================================================================
-// DMMototHardwareInterface Implementation
-//==============================================================================
+public:
+  RCLCPP_SHARED_PTR_DEFINITIONS(DMMototHardwareInterface)
+
+  hardware_interface::CallbackReturn on_init(const hardware_interface::HardwareInfo & info) override;
+  
+  hardware_interface::CallbackReturn on_configure(const rclcpp_lifecycle::State & previous_state) override;
+  
+  std::vector<hardware_interface::StateInterface> export_state_interfaces() override;
+  
+  std::vector<hardware_interface::CommandInterface> export_command_interfaces() override;
+  
+  hardware_interface::CallbackReturn on_activate(const rclcpp_lifecycle::State & previous_state) override;
+  
+  hardware_interface::CallbackReturn on_deactivate(const rclcpp_lifecycle::State & previous_state) override;
+  
+  hardware_interface::return_type read(const rclcpp::Time & time, const rclcpp::Duration & period) override;
+  
+  hardware_interface::return_type write(const rclcpp::Time & time, const rclcpp::Duration & period) override;
+  
+  void print_hardware_info(const hardware_interface::HardwareInfo& info, rclcpp::Logger logger);
+
+private:
+  enum DM_Motor_Type
+  {
+    DM4310,
+    DM4310_48V,
+    DM4340,
+    DM4340_48V,
+    DM6006,
+    DM8006,
+    DM8009,
+    DM10010L,
+    DM10010,
+    DMH3510,
+    DMH6215,
+    DMG6220,
+    Num_Of_Motor
+  };
+  typedef struct
+  {
+    float Q_MAX;   // 位置范围 (rad)
+    float DQ_MAX;  // 速度范围 (rad/s)
+    float TAU_MAX; // 力矩范围 (Nm)
+  } Limit_param;
+
+  // 电机PMAX DQMAX TAUMAX参数
+  Limit_param limit_param[Num_Of_Motor] =
+      {
+          {12.5, 30, 10},  // DM4310
+          {12.5, 50, 10},  // DM4310_48V
+          {12.5, 8, 28},   // DM4340
+          {12.5, 10, 28},  // DM4340_48V
+          {12.5, 45, 20},  // DM6006
+          {12.5, 45, 40},  // DM8006
+          {12.5, 45, 54},  // DM8009
+          {12.5, 25, 200}, // DM10010L
+          {12.5, 20, 200}, // DM10010
+          {12.5, 280, 1},  // DMH3510
+          {12.5, 45, 10},  // DMH6215
+          {12.5, 45, 10}   // DMG6220
+      };
+  // 达妙电机MIT模式相关结构体
+  struct DamiaoMotor {
+    uint32_t can_id;
+    double position;
+    double velocity;
+    double effort;
+    double cmd_position;
+    double cmd_velocity;
+    double cmd_effort;
+    double kp;
+    double kd;
+    double dir;
+    bool is_simulated;  // 是否为仿真电机
+    DM_Motor_Type type;
+    Limit_param limit_param{};
+  };
+
+  // CAN通信相关
+  int can_socket_;
+  std::string can_interface_;
+  bool is_sim_hardware{true}; // 是否为仿真硬件接口，遇到非仿真关节时设置false，默认true
+
+  // 电机列表
+  std::vector<DamiaoMotor> motors_;
+  
+  // MIT模式控制参数
+  static constexpr double KP_MIN = 0.0;    // Kp范围
+  static constexpr double KP_MAX = 500.0;
+  static constexpr double KD_MIN = 0.0;    // Kd范围
+  static constexpr double KD_MAX = 5.0;
+
+  // 工具函数
+  bool init_can_socket();
+  void close_can_socket();
+  bool send_can_frame(uint32_t can_id, const uint8_t* data, size_t len);
+  bool receive_can_frame(struct can_frame& frame);
+  
+  // MIT模式相关函数
+  void enable_motor(uint32_t can_id);
+  void disable_motor(uint32_t can_id);
+  bool reset_motor(uint32_t can_id);
+  void send_mit_command(const DamiaoMotor& motor);
+  bool parse_motor_feedback(const struct can_frame& frame, DamiaoMotor& motor);
+  
+  // 数据转换函数
+  uint16_t float_to_uint(float x, float x_min, float x_max, int bits);
+  float uint_to_float(uint16_t x_int, float x_min, float x_max, int bits);
+};
 
 hardware_interface::CallbackReturn DMMototHardwareInterface::on_init(
   const hardware_interface::HardwareInfo & info)
 {
-  if (hardware_interface::SystemInterface::on_init(info) !=
-      hardware_interface::CallbackReturn::SUCCESS)
+  print_hardware_info(info, rclcpp::get_logger("DMMototHardwareInterface"));
+  if (hardware_interface::SystemInterface::on_init(info) != hardware_interface::CallbackReturn::SUCCESS)
   {
     return hardware_interface::CallbackReturn::ERROR;
   }
 
-  logger_ = rclcpp::get_logger("DMMototHardwareInterface");
-
-  // Read CAN interface type (default: socketcan)
-  auto it = info_.hardware_parameters.find("can_interface_type");
-  if (it != info_.hardware_parameters.end()) {
-    can_interface_type_ = it->second;
-  } else {
-    can_interface_type_ = "socketcan";
-  }
-
-  // Read CAN port configuration
-  can_port_ = info_.hardware_parameters["can_port"];
-  can_baudrate_ = std::stoi(info_.hardware_parameters["can_baudrate"]);
-
-  // Read serial baudrate for USB-CAN (default: 921600)
-  auto serial_baud_it = info_.hardware_parameters.find("serial_baudrate");
-  if (serial_baud_it != info_.hardware_parameters.end()) {
-    serial_baudrate_ = std::stoi(serial_baud_it->second);
-  } else {
-    serial_baudrate_ = 921600;
-  }
-
-  // Read motor configurations for each joint
-  motor_ids_.resize(info_.joints.size());
-  master_ids_.resize(info_.joints.size());
-  motor_types_.resize(info_.joints.size());
-  position_kp_.resize(info_.joints.size());
-  position_kd_.resize(info_.joints.size());
-  simulated_.resize(info_.joints.size());
-
-  for (size_t i = 0; i < info_.joints.size(); ++i) {
-    motor_ids_[i] = std::stoi(info_.joints[i].parameters.at("motor_id"));
-    master_ids_[i] = std::stoi(info_.joints[i].parameters.at("master_id"));
-
-    std::string motor_type_str = info_.joints[i].parameters.at("motor_type");
-    if (motor_type_str == "DM4340") {
-      motor_types_[i] = MotorType::DM4340;
+  // 获取CAN接口名称(urdf: ros2_control->hardware->param : <param name="can_interface">can0</param>)
+  can_interface_ = info_.hardware_parameters.at("can_interface");
+  
+  // 初始化电机列表
+  motors_.resize(info_.joints.size());
+  
+  for (size_t i = 0; i < info_.joints.size(); i++)
+  {
+    // 关节参数(urdf: ros2_control->joint->param : <param name="can_id">0x02</param>)
+    motors_[i].can_id = std::stoul(info_.joints[i].parameters.at("can_id"), nullptr, 16);
+    motors_[i].kp = std::stod(info_.joints[i].parameters.at("kp"));
+    motors_[i].kd = std::stod(info_.joints[i].parameters.at("kd"));
+    
+    // 检查是否为仿真电机
+    auto sim_it = info_.joints[i].parameters.find("is_simulated");
+    if (sim_it != info_.joints[i].parameters.end()) {
+      motors_[i].is_simulated = (sim_it->second == "true");
     } else {
-      motor_types_[i] = MotorType::DM_J4310_2EC;
+      motors_[i].is_simulated = false;  // 默认不是仿真电机
     }
+    if (!motors_[i].is_simulated)
+      is_sim_hardware = false;
+    if (info_.joints[i].parameters.find("type") == info_.joints[i].parameters.end())
+    {
+      RCLCPP_ERROR(rclcpp::get_logger("DMMototHardwareInterface"), "param <type> is required");
+      return hardware_interface::CallbackReturn::ERROR;
+    }
+    const auto type = static_cast<DM_Motor_Type>(std::stoi(info_.joints[i].parameters.at("type")));
+    motors_[i].type = type;
+    motors_[i].limit_param = limit_param[type];
+    // 方向参数
+    if (info_.joints[i].parameters.find("dir") == info_.joints[i].parameters.end()) {
+      RCLCPP_ERROR(rclcpp::get_logger("DMMototHardwareInterface"), "param <dir> is required");
+      return hardware_interface::CallbackReturn::ERROR;
+    }
+    const auto &dir = std::stoi(info_.joints[i].parameters.at("dir"));
+    motors_[i].dir = (dir >= 0) ? 1.0 : -1.0;
 
-    // Read per-joint control parameters
-    position_kp_[i] = std::stod(info_.joints[i].parameters.at("position_kp"));
-    position_kd_[i] = std::stod(info_.joints[i].parameters.at("position_kd"));
-
-    // Read simulation flag
-    std::string simulated_str = info_.joints[i].parameters.at("simulated");
-    simulated_[i] = (simulated_str == "true" || simulated_str == "True" || simulated_str == "1");
+    motors_[i].position = 0.0;
+    motors_[i].velocity = 0.0;
+    motors_[i].effort = 0.0;
+    motors_[i].cmd_position = 0.0;
+    motors_[i].cmd_velocity = 0.0;
+    motors_[i].cmd_effort = 0.0;
   }
 
-  // Initialize state vectors
-  hw_positions_.resize(info_.joints.size(), 0.0);
-  hw_velocities_.resize(info_.joints.size(), 0.0);
-  hw_commands_.resize(info_.joints.size(), 0.0);
+  for (const auto &motor : motors_)
+  {
+    RCLCPP_INFO(rclcpp::get_logger("DMMototHardwareInterface"), "type=%d, can_id=0x%03X, kp=%.2f, kd=%.2f, sim=%d",
+                motor.type, motor.can_id, motor.kp, motor.kd, motor.is_simulated);
+  }
 
-  RCLCPP_INFO(logger_, "DMMototHardwareInterface initialized with %zu joints, CAN interface type: %s",
-              info_.joints.size(), can_interface_type_.c_str());
+  RCLCPP_INFO(rclcpp::get_logger("DMMototHardwareInterface"), "Is Simulate Hardware: %d", is_sim_hardware);
+  RCLCPP_INFO(rclcpp::get_logger("DMMototHardwareInterface"),
+              "Initialized with %zu motors on CAN interface %s",
+              motors_.size(), can_interface_.c_str());
 
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -748,87 +211,81 @@ hardware_interface::CallbackReturn DMMototHardwareInterface::on_init(
 hardware_interface::CallbackReturn DMMototHardwareInterface::on_configure(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  RCLCPP_INFO(logger_, "Configuring DMMototHardwareInterface...");
-
-  // Create CAN interface based on type
-  if (can_interface_type_ == "usb_can") {
-    RCLCPP_INFO(logger_, "Creating USB-CAN interface");
-    can_interface_ = std::make_shared<USBCANInterface>(can_port_, serial_baudrate_, can_baudrate_);
-  } else if (can_interface_type_ == "socketcan") {
-    RCLCPP_INFO(logger_, "Creating SocketCAN interface");
-    can_interface_ = std::make_shared<SocketCANInterface>(can_port_, can_baudrate_);
-  } else {
-    RCLCPP_ERROR(logger_, "Unknown CAN interface type: %s (supported: socketcan, usb_can)",
-                 can_interface_type_.c_str());
+  RCLCPP_INFO(rclcpp::get_logger("DMMototHardwareInterface"), "Configuring...");
+  if (is_sim_hardware) return hardware_interface::CallbackReturn::SUCCESS;
+  
+  if (!init_can_socket())
+  {
+    RCLCPP_ERROR(rclcpp::get_logger("DMMototHardwareInterface"), 
+                 "Failed to initialize CAN socket");
     return hardware_interface::CallbackReturn::ERROR;
   }
 
-  if (!can_interface_->open()) {
-    RCLCPP_ERROR(logger_, "Failed to open CAN interface %s", can_port_.c_str());
-    return hardware_interface::CallbackReturn::ERROR;
-  }
-
-  // Create motor drivers
-  motors_.clear();
-  for (size_t i = 0; i < info_.joints.size(); ++i) {
-    MotorConfig config;
-    config.motor_id = motor_ids_[i];
-    config.master_id = master_ids_[i];
-    config.type = motor_types_[i];
-
-    // Set motor parameters based on type
-    if (config.type == MotorType::DM4340) {
-      config.P_MAX = 12.5;
-      config.V_MAX = 8.0;
-      config.T_MAX = 28.0;
-      config.KP_MAX = 500.0;
-      config.KD_MAX = 5.0;
-    } else {  // DM_J4310_2EC
-      config.P_MAX = 12.5;
-      config.V_MAX = 30.0;
-      config.T_MAX = 10.0;
-      config.KP_MAX = 500.0;
-      config.KD_MAX = 5.0;
+  // 读取非仿真关节的当前位置，避免电机启动时跳动
+  for (auto& motor : motors_) {
+    if (!motor.is_simulated) {
+      if (reset_motor(motor.can_id)) {
+        // 等待并接收反馈
+        struct can_frame frame;
+        // 使用阻塞模式读取，最多等待2000ms
+        auto start_time = std::chrono::steady_clock::now();
+        bool success = false;
+        while (std::chrono::steady_clock::now() - start_time < std::chrono::milliseconds(2000)) {
+          if (receive_can_frame(frame) && parse_motor_feedback(frame, motor)) {
+            // 将当前位置赋值给命令位置，避免启动时跳动
+            motor.cmd_position = motor.position;
+            RCLCPP_INFO(rclcpp::get_logger("DMMototHardwareInterface"), 
+                        "Motor 0x%03X initial position: %.3f", motor.can_id, motor.position);
+            success = true;
+            break;
+          }
+          // 短暂延时避免过度占用CPU
+          std::this_thread::sleep_for(std::chrono::microseconds(50));
+        }
+        if (!success) {
+          RCLCPP_ERROR(rclcpp::get_logger("DMMototHardwareInterface"), 
+                       "Failed to read initial position for motor 0x%03X", motor.can_id);
+          return hardware_interface::CallbackReturn::ERROR;
+        }
+      }
+    } else {
+      // 仿真电机使用默认值
+      motor.cmd_position = motor.position;
     }
-
-    motors_.push_back(std::make_shared<DMMotor>(can_interface_, config));
-
-    RCLCPP_INFO(logger_, "Configured motor for joint %s: ID=%d, Type=%s, Simulated=%s",
-                info_.joints[i].name.c_str(), config.motor_id,
-                config.type == MotorType::DM4340 ? "DM4340" : "DM-J4310-2EC",
-                simulated_[i] ? "true" : "false");
   }
 
-  RCLCPP_INFO(logger_, "DMMototHardwareInterface configured successfully");
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-std::vector<hardware_interface::StateInterface>
-DMMototHardwareInterface::export_state_interfaces()
+std::vector<hardware_interface::StateInterface> DMMototHardwareInterface::export_state_interfaces()
 {
   std::vector<hardware_interface::StateInterface> state_interfaces;
-
-  for (size_t i = 0; i < info_.joints.size(); ++i) {
-    state_interfaces.emplace_back(
-      hardware_interface::StateInterface(
-        info_.joints[i].name, hardware_interface::HW_IF_POSITION, &hw_positions_[i]));
-    state_interfaces.emplace_back(
-      hardware_interface::StateInterface(
-        info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &hw_velocities_[i]));
+  
+  for (size_t i = 0; i < info_.joints.size(); i++)
+  {
+    state_interfaces.emplace_back(hardware_interface::StateInterface(
+      info_.joints[i].name, hardware_interface::HW_IF_POSITION, &motors_[i].position));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(
+      info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &motors_[i].velocity));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(
+      info_.joints[i].name, hardware_interface::HW_IF_EFFORT, &motors_[i].effort));
   }
 
   return state_interfaces;
 }
 
-std::vector<hardware_interface::CommandInterface>
-DMMototHardwareInterface::export_command_interfaces()
+std::vector<hardware_interface::CommandInterface> DMMototHardwareInterface::export_command_interfaces()
 {
   std::vector<hardware_interface::CommandInterface> command_interfaces;
-
-  for (size_t i = 0; i < info_.joints.size(); ++i) {
-    command_interfaces.emplace_back(
-      hardware_interface::CommandInterface(
-        info_.joints[i].name, hardware_interface::HW_IF_POSITION, &hw_commands_[i]));
+  
+  for (size_t i = 0; i < info_.joints.size(); i++)
+  {
+    command_interfaces.emplace_back(hardware_interface::CommandInterface(
+      info_.joints[i].name, hardware_interface::HW_IF_POSITION, &motors_[i].cmd_position));
+    command_interfaces.emplace_back(hardware_interface::CommandInterface(
+      info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &motors_[i].cmd_velocity));
+    command_interfaces.emplace_back(hardware_interface::CommandInterface(
+      info_.joints[i].name, hardware_interface::HW_IF_EFFORT, &motors_[i].cmd_effort));
   }
 
   return command_interfaces;
@@ -837,86 +294,57 @@ DMMototHardwareInterface::export_command_interfaces()
 hardware_interface::CallbackReturn DMMototHardwareInterface::on_activate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  RCLCPP_INFO(logger_, "Activating DMMototHardwareInterface...");
-
-  // Enable all real (non-simulated) motors
-  for (size_t i = 0; i < motors_.size(); ++i) {
-    if (simulated_[i]) {
-      RCLCPP_INFO(logger_, "Joint %s is simulated, skipping enable",
-                  info_.joints[i].name.c_str());
-      continue;
-    }
-    if (!motors_[i]->enable()) {
-      RCLCPP_ERROR(logger_, "Failed to enable motor %zu", i);
-      return hardware_interface::CallbackReturn::ERROR;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  RCLCPP_INFO(rclcpp::get_logger("DMMototHardwareInterface"), "Activating...");
+  
+  // 启用所有电机
+  for (const auto& motor : motors_)
+  {
+    enable_motor(motor.can_id);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
-  // Wait for initial feedback
-  std::this_thread::sleep_for(std::chrono::milliseconds(200));
-
-  // Read initial positions
-  for (size_t i = 0; i < motors_.size(); ++i) {
-    if (simulated_[i]) {
-      // For simulated joints, initialize to 0
-      hw_positions_[i] = 0.0;
-      hw_velocities_[i] = 0.0;
-      hw_commands_[i] = 0.0;
-    } else {
-      MotorState state = motors_[i]->getState();
-      hw_positions_[i] = state.position;
-      hw_velocities_[i] = state.velocity;
-      hw_commands_[i] = state.position;  // Initialize command to current position
-    }
-
-    RCLCPP_INFO(logger_, "Joint %s initial position: %.4f rad%s",
-                info_.joints[i].name.c_str(), hw_positions_[i],
-                simulated_[i] ? " (simulated)" : "");
-  }
-
-  RCLCPP_INFO(logger_, "DMMototHardwareInterface activated successfully");
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
 hardware_interface::CallbackReturn DMMototHardwareInterface::on_deactivate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  RCLCPP_INFO(logger_, "Deactivating DMMototHardwareInterface...");
-
-  // Disable all real (non-simulated) motors
-  for (size_t i = 0; i < motors_.size(); ++i) {
-    if (simulated_[i]) {
-      continue;
-    }
-    motors_[i]->disable();
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  RCLCPP_INFO(rclcpp::get_logger("DMMototHardwareInterface"), "Deactivating...");
+  
+  // 禁用所有电机
+  for (const auto& motor : motors_)
+  {
+    disable_motor(motor.can_id);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
-  RCLCPP_INFO(logger_, "DMMototHardwareInterface deactivated successfully");
+  close_can_socket();
+
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
 hardware_interface::return_type DMMototHardwareInterface::read(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
-  // Read motor states
-  for (size_t i = 0; i < motors_.size(); ++i) {
-    if (simulated_[i]) {
-      // For simulated joints, position follows command directly
-      hw_positions_[i] = hw_commands_[i];
-      hw_velocities_[i] = 0.0;
-      continue;
+  struct can_frame frame;
+  
+  // 读取CAN帧，非阻塞模式
+  while (receive_can_frame(frame))
+  {
+    // 查找对应的电机并解析反馈数据
+    for (auto& motor : motors_)
+    {
+      if (parse_motor_feedback(frame, motor))
+      {
+        break;
+      }
     }
-
-    MotorState state = motors_[i]->getState();
-    hw_positions_[i] = state.position;
-    hw_velocities_[i] = state.velocity;
-
-    // Check for errors
-    if (state.error_code >= 0x8) {
-      RCLCPP_WARN_THROTTLE(logger_, *rclcpp::Clock::make_shared(), 1000,
-                           "Motor %zu error code: 0x%X", i, state.error_code);
+  }
+  
+  // 处理仿真电机：直接将cmd_position赋值给position
+  for (auto& motor : motors_) {
+    if (motor.is_simulated) {
+      motor.position = motor.cmd_position;
     }
   }
 
@@ -926,30 +354,391 @@ hardware_interface::return_type DMMototHardwareInterface::read(
 hardware_interface::return_type DMMototHardwareInterface::write(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
-  // Send commands to motors using MIT mode
-  for (size_t i = 0; i < motors_.size(); ++i) {
-    if (simulated_[i]) {
-      // Simulated joints don't need CAN commands
-      continue;
+  // 向每个电机发送MIT模式控制命令（跳过仿真电机）
+  for (const auto& motor : motors_)
+  {
+    if (!motor.is_simulated) {
+      send_mit_command(motor);
     }
-
-    // Use MIT control with position command (per-joint kp/kd)
-    motors_[i]->controlMIT(
-      hw_commands_[i],     // target position
-      0.0,                 // target velocity (let controller handle it)
-      position_kp_[i],     // position gain (per-joint)
-      position_kd_[i],     // damping gain (per-joint)
-      0.0                  // feedforward torque
-    );
+    // RCLCPP_INFO(rclcpp::get_logger("DMMototHardwareInterface"), "[%d]cmd_effort:%f", motor.can_id, motor.cmd_effort);
   }
 
   return hardware_interface::return_type::OK;
 }
 
-}  // namespace dmmotor_hardware_interface
+bool DMMototHardwareInterface::init_can_socket()
+{
+  can_socket_ = socket(PF_CAN, SOCK_RAW, CAN_RAW);
+  if (can_socket_ < 0)
+  {
+    return false;
+  }
+
+  struct ifreq ifr;
+  strcpy(ifr.ifr_name, can_interface_.c_str());
+  ioctl(can_socket_, SIOCGIFINDEX, &ifr);
+
+  struct sockaddr_can addr;
+  memset(&addr, 0, sizeof(addr));
+  addr.can_family = AF_CAN;
+  addr.can_ifindex = ifr.ifr_ifindex;
+
+  if (bind(can_socket_, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+  {
+    close(can_socket_);
+    return false;
+  }
+
+  // 设置为非阻塞模式
+  int flags = fcntl(can_socket_, F_GETFL, 0);
+  fcntl(can_socket_, F_SETFL, flags | O_NONBLOCK);
+
+  return true;
+}
+
+void DMMototHardwareInterface::close_can_socket()
+{
+  if (can_socket_ >= 0)
+  {
+    close(can_socket_);
+    can_socket_ = -1;
+  }
+}
+
+bool DMMototHardwareInterface::send_can_frame(uint32_t can_id, const uint8_t* data, size_t len)
+{
+  struct can_frame frame;
+  frame.can_id = can_id;
+  frame.can_dlc = len;
+  memcpy(frame.data, data, len);
+
+  // RCLCPP_INFO(rclcpp::get_logger("DMMototHardwareInterface"), 
+  //             "send[%03x]%02x %02x %02x %02x %02x %02x %02x %02x", 
+  //             frame.can_id,
+  //             frame.data[0], frame.data[1], frame.data[2],
+  //             frame.data[3], frame.data[4], frame.data[5],
+  //             frame.data[6], frame.data[7]);
+
+  ssize_t nbytes = ::write(can_socket_, &frame, sizeof(frame));
+  return nbytes == sizeof(frame);
+}
+
+bool DMMototHardwareInterface::receive_can_frame(struct can_frame& frame)
+{
+  ssize_t nbytes = ::read(can_socket_, &frame, sizeof(frame));
+  // RCLCPP_INFO(rclcpp::get_logger("DMMototHardwareInterface"),
+  //             "%d|read[%03x]%02x %02x %02x %02x %02x %02x %02x %02x",nbytes, frame.can_id,
+  //             frame.data[0], frame.data[1], frame.data[2],
+  //             frame.data[3], frame.data[4], frame.data[5],
+  //             frame.data[6], frame.data[7]);
+  return nbytes == sizeof(frame);
+}
+
+void DMMototHardwareInterface::enable_motor(uint32_t can_id)
+{
+  uint8_t enable_cmd[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFC};
+  send_can_frame(can_id, enable_cmd, 8);
+}
+
+void DMMototHardwareInterface::disable_motor(uint32_t can_id)
+{
+  uint8_t disable_cmd[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFD};
+  send_can_frame(can_id, disable_cmd, 8);
+}
+
+bool DMMototHardwareInterface::reset_motor(uint32_t can_id)
+{
+  uint8_t reset_cmd[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFB};
+  return send_can_frame(can_id, reset_cmd, 8);
+}
+
+void DMMototHardwareInterface::send_mit_command(const DamiaoMotor& motor)
+{
+  uint8_t data[8] = {0};
+  
+  const auto &limit_param_cmd = motor.limit_param;
+  // 转换控制参数为16位整数
+  const auto cmd_pos = motor.cmd_position * motor.dir; // 方向修正
+  const auto cmd_vel = motor.cmd_velocity * motor.dir; // 方向修正
+  const auto cmd_effort = motor.cmd_effort * motor.dir; // 方向修正
+  uint16_t p_des = float_to_uint(cmd_pos, -limit_param_cmd.Q_MAX, limit_param_cmd.Q_MAX, 16);
+  uint16_t v_des = float_to_uint(cmd_vel, -limit_param_cmd.DQ_MAX, limit_param_cmd.DQ_MAX, 12);
+  uint16_t kp = float_to_uint(motor.kp, KP_MIN, KP_MAX, 12);
+  uint16_t kd = float_to_uint(motor.kd, KD_MIN, KD_MAX, 12);
+  uint16_t t_ff = float_to_uint(cmd_effort, -limit_param_cmd.TAU_MAX, limit_param_cmd.TAU_MAX, 12);
+
+  // 打包数据
+  data[0] = p_des >> 8;
+  data[1] = p_des & 0xFF;
+  data[2] = v_des >> 4;
+  data[3] = ((v_des & 0xF) << 4) | (kp >> 8);
+  data[4] = kp & 0xFF;
+  data[5] = kd >> 4;
+  data[6] = ((kd & 0xF) << 4) | (t_ff >> 8);
+  data[7] = t_ff & 0xFF;
+  
+  send_can_frame(motor.can_id, data, 8);
+}
+
+bool DMMototHardwareInterface::parse_motor_feedback(const struct can_frame& frame, DamiaoMotor& motor)
+{
+  if (frame.can_dlc < 6) return false;
+  const uint32_t slave_id = static_cast<uint32_t>(frame.data[0] & 0x0F); // 第1个字节低四位为发出此消息的从站ID
+  if (slave_id != motor.can_id) return false;
+  
+  // 解析位置、速度、力矩反馈
+  uint16_t pos_int = (frame.data[1] << 8) | frame.data[2];
+  uint16_t vel_int = (frame.data[3] << 4) | (frame.data[4] >> 4);
+  uint16_t cur_int = ((frame.data[4] & 0xF) << 8) | frame.data[5];
+
+  const auto limit_param_receive = motor.limit_param;
+  motor.position = motor.dir * uint_to_float(pos_int, -limit_param_receive.Q_MAX, limit_param_receive.Q_MAX, 16);
+  motor.velocity = motor.dir * uint_to_float(vel_int, -limit_param_receive.DQ_MAX, limit_param_receive.DQ_MAX, 12);
+  motor.effort = motor.dir * uint_to_float(cur_int, -limit_param_receive.TAU_MAX, limit_param_receive.TAU_MAX, 12);
+  return true;
+}
+
+uint16_t DMMototHardwareInterface::float_to_uint(float x, float x_min, float x_max, int bits)
+{
+  float span = x_max - x_min;
+  float offset = x_min;
+  uint16_t max_int = (1 << bits) - 1;
+  
+  if (x > x_max) x = x_max;
+  if (x < x_min) x = x_min;
+  
+  return static_cast<uint16_t>((x - offset) * max_int / span);
+}
+
+float DMMototHardwareInterface::uint_to_float(uint16_t x_int, float x_min, float x_max, int bits)
+{
+  float span = x_max - x_min;
+  float offset = x_min;
+  uint16_t max_int = (1 << bits) - 1;
+  
+  return static_cast<float>(x_int) * span / max_int + offset;
+}
+
+void DMMototHardwareInterface::print_hardware_info(const hardware_interface::HardwareInfo& info, rclcpp::Logger logger)
+{
+    RCLCPP_INFO(logger, "=== Hardware Info ===");
+    
+    // 基本信息
+    RCLCPP_INFO(logger, "Name: %s", info.name.c_str());
+    RCLCPP_INFO(logger, "Type: %s", info.type.c_str());
+    RCLCPP_INFO(logger, "Group: %s", info.group.c_str());
+    
+    // 硬件参数
+    RCLCPP_INFO(logger, "--- Hardware Parameters ---");
+    for (const auto& param : info.hardware_parameters)
+    {
+        RCLCPP_INFO(logger, "  Parameter: %s = %s", param.first.c_str(), param.second.c_str());
+    }
+    
+    // 关节信息
+    RCLCPP_INFO(logger, "--- Joints (%zu) ---", info.joints.size());
+    for (size_t i = 0; i < info.joints.size(); ++i)
+    {
+        const auto& joint = info.joints[i];
+        RCLCPP_INFO(logger, "  Joint[%zu]: %s", i, joint.name.c_str());
+        RCLCPP_INFO(logger, "    Type: %s", joint.type.c_str());
+        
+        // 关节参数
+        if (!joint.parameters.empty())
+        {
+            RCLCPP_INFO(logger, "    Parameters:");
+            for (const auto& param : joint.parameters)
+            {
+                RCLCPP_INFO(logger, "      %s = %s", param.first.c_str(), param.second.c_str());
+            }
+        }
+        
+        // 命令接口
+        if (!joint.command_interfaces.empty())
+        {
+            RCLCPP_INFO(logger, "    Command Interfaces:");
+            for (const auto& cmd_iface : joint.command_interfaces)
+            {
+                RCLCPP_INFO(logger, "      %s", cmd_iface.name.c_str());
+                if (!cmd_iface.initial_value.empty())
+                {
+                    RCLCPP_INFO(logger, "        Initial Value: %s", cmd_iface.initial_value.c_str());
+                }
+                if (cmd_iface.min != "")
+                {
+                    RCLCPP_INFO(logger, "        Min: %s", cmd_iface.min.c_str());
+                }
+                if (cmd_iface.max != "")
+                {
+                    RCLCPP_INFO(logger, "        Max: %s", cmd_iface.max.c_str());
+                }
+                if (!cmd_iface.data_type.empty())
+                {
+                    RCLCPP_INFO(logger, "        Data Type: %s", cmd_iface.data_type.c_str());
+                }
+            }
+        }
+        
+        // 状态接口
+        if (!joint.state_interfaces.empty())
+        {
+            RCLCPP_INFO(logger, "    State Interfaces:");
+            for (const auto& state_iface : joint.state_interfaces)
+            {
+                RCLCPP_INFO(logger, "      %s", state_iface.name.c_str());
+                if (!state_iface.initial_value.empty())
+                {
+                    RCLCPP_INFO(logger, "        Initial Value: %s", state_iface.initial_value.c_str());
+                }
+                if (!state_iface.data_type.empty())
+                {
+                    RCLCPP_INFO(logger, "        Data Type: %s", state_iface.data_type.c_str());
+                }
+            }
+        }
+    }
+    
+    // 传感器信息
+    RCLCPP_INFO(logger, "--- Sensors (%zu) ---", info.sensors.size());
+    for (size_t i = 0; i < info.sensors.size(); ++i)
+    {
+        const auto& sensor = info.sensors[i];
+        RCLCPP_INFO(logger, "  Sensor[%zu]: %s", i, sensor.name.c_str());
+        
+        // 传感器参数
+        if (!sensor.parameters.empty())
+        {
+            RCLCPP_INFO(logger, "    Parameters:");
+            for (const auto& param : sensor.parameters)
+            {
+                RCLCPP_INFO(logger, "      %s = %s", param.first.c_str(), param.second.c_str());
+            }
+        }
+        
+        // 传感器状态接口
+        if (!sensor.state_interfaces.empty())
+        {
+            RCLCPP_INFO(logger, "    State Interfaces:");
+            for (const auto& state_iface : sensor.state_interfaces)
+            {
+                RCLCPP_INFO(logger, "      %s", state_iface.name.c_str());
+                if (!state_iface.initial_value.empty())
+                {
+                    RCLCPP_INFO(logger, "        Initial Value: %s", state_iface.initial_value.c_str());
+                }
+                if (!state_iface.data_type.empty())
+                {
+                    RCLCPP_INFO(logger, "        Data Type: %s", state_iface.data_type.c_str());
+                }
+            }
+        }
+    }
+    
+    // GPIO信息
+    RCLCPP_INFO(logger, "--- GPIOs (%zu) ---", info.gpios.size());
+    for (size_t i = 0; i < info.gpios.size(); ++i)
+    {
+        const auto& gpio = info.gpios[i];
+        RCLCPP_INFO(logger, "  GPIO[%zu]: %s", i, gpio.name.c_str());
+        
+        // GPIO参数
+        if (!gpio.parameters.empty())
+        {
+            RCLCPP_INFO(logger, "    Parameters:");
+            for (const auto& param : gpio.parameters)
+            {
+                RCLCPP_INFO(logger, "      %s = %s", param.first.c_str(), param.second.c_str());
+            }
+        }
+        
+        // GPIO命令接口
+        if (!gpio.command_interfaces.empty())
+        {
+            RCLCPP_INFO(logger, "    Command Interfaces:");
+            for (const auto& cmd_iface : gpio.command_interfaces)
+            {
+                RCLCPP_INFO(logger, "      %s", cmd_iface.name.c_str());
+                if (!cmd_iface.initial_value.empty())
+                {
+                    RCLCPP_INFO(logger, "        Initial Value: %s", cmd_iface.initial_value.c_str());
+                }
+                if (!cmd_iface.data_type.empty())
+                {
+                    RCLCPP_INFO(logger, "        Data Type: %s", cmd_iface.data_type.c_str());
+                }
+            }
+        }
+        
+        // GPIO状态接口
+        if (!gpio.state_interfaces.empty())
+        {
+            RCLCPP_INFO(logger, "    State Interfaces:");
+            for (const auto& state_iface : gpio.state_interfaces)
+            {
+                RCLCPP_INFO(logger, "      %s", state_iface.name.c_str());
+                if (!state_iface.initial_value.empty())
+                {
+                    RCLCPP_INFO(logger, "        Initial Value: %s", state_iface.initial_value.c_str());
+                }
+                if (!state_iface.data_type.empty())
+                {
+                    RCLCPP_INFO(logger, "        Data Type: %s", state_iface.data_type.c_str());
+                }
+            }
+        }
+    }
+    
+    // 变速器信息
+    RCLCPP_INFO(logger, "--- Transmissions (%zu) ---", info.transmissions.size());
+    for (size_t i = 0; i < info.transmissions.size(); ++i)
+    {
+        const auto& transmission = info.transmissions[i];
+        RCLCPP_INFO(logger, "  Transmission[%zu]: %s", i, transmission.name.c_str());
+        RCLCPP_INFO(logger, "    Type: %s", transmission.type.c_str());
+        
+        // 变速器参数
+        if (!transmission.parameters.empty())
+        {
+            RCLCPP_INFO(logger, "    Parameters:");
+            for (const auto& param : transmission.parameters)
+            {
+                RCLCPP_INFO(logger, "      %s = %s", param.first.c_str(), param.second.c_str());
+            }
+        }
+        
+        // 关节引用
+        if (!transmission.joints.empty())
+        {
+            RCLCPP_INFO(logger, "    Joints:");
+            for (const auto& joint_ref : transmission.joints)
+            {
+                RCLCPP_INFO(logger, "      Name: %s", joint_ref.name.c_str());
+                RCLCPP_INFO(logger, "      Role: %s", joint_ref.role.c_str());
+                RCLCPP_INFO(logger, "      Mechanical Reduction: %f", joint_ref.mechanical_reduction);
+                RCLCPP_INFO(logger, "      Offset: %f", joint_ref.offset);
+            }
+        }
+        
+        // 执行器引用
+        if (!transmission.actuators.empty())
+        {
+            RCLCPP_INFO(logger, "    Actuators:");
+            for (const auto& actuator_ref : transmission.actuators)
+            {
+                RCLCPP_INFO(logger, "      Name: %s", actuator_ref.name.c_str());
+                RCLCPP_INFO(logger, "      Role: %s", actuator_ref.role.c_str());
+                RCLCPP_INFO(logger, "      Mechanical Reduction: %f", actuator_ref.mechanical_reduction);
+                RCLCPP_INFO(logger, "      Offset: %f", actuator_ref.offset);
+            }
+        }
+    }
+    
+    RCLCPP_INFO(logger, "=== End Hardware Info ===");
+}
+
+} // namespace damiao_hardware
 
 #include "pluginlib/class_list_macros.hpp"
+PLUGINLIB_EXPORT_CLASS(dmmotor_hardware_interface::DMMototHardwareInterface, hardware_interface::SystemInterface)
 
-PLUGINLIB_EXPORT_CLASS(
-  dmmotor_hardware_interface::DMMototHardwareInterface,
-  hardware_interface::SystemInterface)
+#endif // DAMIAO_HARDWARE_INTERFACE_HPP

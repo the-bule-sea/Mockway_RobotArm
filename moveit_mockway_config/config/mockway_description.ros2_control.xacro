@@ -8,92 +8,93 @@
                 <!-- DM Motor Hardware Interface for real hardware -->
                 <plugin>dmmotor_hardware_interface/DMMototHardwareInterface</plugin>
                 <!-- CAN interface configuration -->
-                <param name="can_port">can0</param>
-                <param name="can_baudrate">1000000</param>
+                <param name="can_interface">can0</param>
             </hardware>
             <!-- Joint 1: DM-J4310-2EC -->
             <joint name="joint1">
+                <param name="can_id">0x01</param>
+                <param name="kp">50.0</param>
+                <param name="kd">1.0</param>
+                <!-- type: 1 DM4310, 2 DM4310_48V, 3 DM4340, 4 DM4340_48V -->
+                <param name="type">1</param>
+                <!-- dir: 1 pos, -1 neg -->
+                <param name="dir">1</param>
+                <param name="is_simulated">false</param>
                 <command_interface name="position"/>
                 <state_interface name="position">
                   <param name="initial_value">${initial_positions['joint1']}</param>
                 </state_interface>
                 <state_interface name="velocity"/>
-                <param name="motor_id">1</param>
-                <param name="master_id">0</param>
-                <param name="motor_type">DM_J4310_2EC</param>
-                <param name="position_kp">40.0</param>
-                <param name="position_kd">1.0</param>
-                <param name="simulated">false</param>
             </joint>
             <!-- Joint 2: DM4340 -->
             <joint name="joint2">
+                <param name="can_id">0x02</param>
+                <param name="kp">50.0</param>
+                <param name="kd">1.0</param>
+                <param name="type">3</param>
+                <param name="dir">1</param>
+                <param name="is_simulated">false</param>
                 <command_interface name="position"/>
                 <state_interface name="position">
                   <param name="initial_value">${initial_positions['joint2']}</param>
                 </state_interface>
                 <state_interface name="velocity"/>
-                <param name="motor_id">2</param>
-                <param name="master_id">0</param>
-                <param name="motor_type">DM4340</param>
-                <param name="position_kp">40.0</param>
-                <param name="position_kd">1.0</param>
-                <param name="simulated">false</param>
             </joint>
             <!-- Joint 3: DM4340 -->
             <joint name="joint3">
+                <param name="can_id">0x03</param>
+                <param name="kp">50.0</param>
+                <param name="kd">1.0</param>
+                <param name="type">3</param>
+                <param name="dir">-1</param>
+                <param name="is_simulated">false</param>
                 <command_interface name="position"/>
                 <state_interface name="position">
                   <param name="initial_value">${initial_positions['joint3']}</param>
                 </state_interface>
                 <state_interface name="velocity"/>
-                <param name="motor_id">3</param>
-                <param name="master_id">0</param>
-                <param name="motor_type">DM4340</param>
-                <param name="position_kp">40.0</param>
-                <param name="position_kd">1.0</param>
-                <param name="simulated">false</param>
             </joint>
             <!-- Joint 4: DM-J4310-2EC -->
             <joint name="joint4">
+                <param name="can_id">0x04</param>
+                <param name="kp">50.0</param>
+                <param name="kd">1.0</param>
+                <param name="type">1</param>
+                <param name="dir">1</param>
+                <param name="is_simulated">false</param>
                 <command_interface name="position"/>
                 <state_interface name="position">
                   <param name="initial_value">${initial_positions['joint4']}</param>
                 </state_interface>
                 <state_interface name="velocity"/>
-                <param name="motor_id">4</param>
-                <param name="master_id">0</param>
-                <param name="motor_type">DM_J4310_2EC</param>
-                <param name="position_kp">40.0</param>
-                <param name="position_kd">1.0</param>
-                <param name="simulated">false</param>
             </joint>
             <!-- Joint 5: DM-J4310-2EC -->
             <joint name="joint5">
+                <param name="can_id">0x05</param>
+                <param name="kp">50.0</param>
+                <param name="kd">1.0</param>
+                <param name="type">1</param>
+                <param name="dir">1</param>
+                <param name="is_simulated">false</param>
                 <command_interface name="position"/>
                 <state_interface name="position">
                   <param name="initial_value">${initial_positions['joint5']}</param>
                 </state_interface>
                 <state_interface name="velocity"/>
-                <param name="motor_id">5</param>
-                <param name="master_id">0</param>
-                <param name="motor_type">DM_J4310_2EC</param>
-                <param name="position_kp">40.0</param>
-                <param name="position_kd">1.0</param>
-                <param name="simulated">false</param>
             </joint>
             <!-- Joint 6: DM-J4310-2EC -->
             <joint name="joint6">
+                <param name="can_id">0x06</param>
+                <param name="kp">50.0</param>
+                <param name="kd">1.0</param>
+                <param name="type">1</param>
+                <param name="dir">1</param>
+                <param name="is_simulated">false</param>
                 <command_interface name="position"/>
                 <state_interface name="position">
                   <param name="initial_value">${initial_positions['joint6']}</param>
                 </state_interface>
                 <state_interface name="velocity"/>
-                <param name="motor_id">6</param>
-                <param name="master_id">0</param>
-                <param name="motor_type">DM_J4310_2EC</param>
-                <param name="position_kp">40.0</param>
-                <param name="position_kd">1.0</param>
-                <param name="simulated">false</param>
             </joint>
 
         </ros2_control>
