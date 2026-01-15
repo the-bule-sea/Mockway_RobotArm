@@ -22,7 +22,7 @@
                 <param name="type">1</param>
                 <!-- dir: 1 pos, -1 neg -->
                 <param name="dir">1</param>
-                <param name="is_simulated">true</param>
+                <param name="is_simulated">false</param>
                 <command_interface name="position"/>
                 <state_interface name="position">
                   <param name="initial_value">${initial_positions['joint1']}</param>
@@ -32,11 +32,11 @@
             <!-- Joint 2: DM4340 -->
             <joint name="joint2">
                 <param name="can_id">0x02</param>
-                <param name="kp">200.0</param>
+                <param name="kp">350.0</param>
                 <param name="kd">2.0</param>
                 <param name="type">3</param>
                 <param name="dir">1</param>
-                <param name="is_simulated">true</param>
+                <param name="is_simulated">false</param>
                 <command_interface name="position"/>
                 <state_interface name="position">
                   <param name="initial_value">${initial_positions['joint2']}</param>
@@ -46,11 +46,11 @@
             <!-- Joint 3: DM4340 -->
             <joint name="joint3">
                 <param name="can_id">0x03</param>
-                <param name="kp">200.0</param>
+                <param name="kp">350.0</param>
                 <param name="kd">2.0</param>
                 <param name="type">3</param>
                 <param name="dir">-1</param>
-                <param name="is_simulated">true</param>
+                <param name="is_simulated">false</param>
                 <command_interface name="position"/>
                 <state_interface name="position">
                   <param name="initial_value">${initial_positions['joint3']}</param>
@@ -64,7 +64,7 @@
                 <param name="kd">1.0</param>
                 <param name="type">1</param>
                 <param name="dir">1</param>
-                <param name="is_simulated">true</param>
+                <param name="is_simulated">false</param>
                 <command_interface name="position"/>
                 <state_interface name="position">
                   <param name="initial_value">${initial_positions['joint4']}</param>
@@ -78,7 +78,7 @@
                 <param name="kd">1.0</param>
                 <param name="type">1</param>
                 <param name="dir">1</param>
-                <param name="is_simulated">true</param>
+                <param name="is_simulated">false</param>
                 <command_interface name="position"/>
                 <state_interface name="position">
                   <param name="initial_value">${initial_positions['joint5']}</param>
