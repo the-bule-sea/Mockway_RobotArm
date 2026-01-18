@@ -23,9 +23,12 @@ local function model_lid()
     lid:fuse(text.new('mockway', 10):x(-20):y(-3):prism(0, 0, (2 + 0.4)))
     return lid:copy()
 end
-
-local export_product = false
-if export_product then
-    model_lid():color('turquoise'):export_step('lid.step'):show()
+if config.generate_step_file then
+    -- 生成STEP文件用于3D打印
+    model_lid():color('turquoise'):export_step('lid.step')
+end
+if not debug.getinfo(3, "S") then
+    -- 此文件为主模块时，显示完整模型
+    model_lid():color('turquoise'):show()
 end
 return { m = model_lid():scale(1e-3) }

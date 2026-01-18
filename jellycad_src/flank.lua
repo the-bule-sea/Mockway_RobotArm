@@ -48,8 +48,13 @@ local function model_flank()
     return flank:copy()
 end
 
-local export_product = false
-if export_product then
-    model_flank():color('gray'):export_step('flank.step'):show()
+if config.generate_step_file then
+    -- 生成STEP文件用于3D打印
+    model_flank():color('gray'):export_step('flank.step')
 end
+if not debug.getinfo(3, "S") then
+    -- 此文件为主模块时，显示完整模型
+    model_flank():color('gray'):show()
+end
+
 return { m = model_flank0():scale(1e-3) }

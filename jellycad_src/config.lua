@@ -5,6 +5,8 @@ JellyCAD version v0.3.10
 Mockway Structure Config File
 --]]
 local config = {}
+-- 装配
+config.generate_step_file = false                                        -- true 运行combine.lua时生成所有零件的完整STEP文件，用于3D打印
 -- 通用
 config.r_motor = 57 / 2                                                  -- 电机直径57
 config.r_motor_flank = 35 / 2                                            -- 电机法兰半径

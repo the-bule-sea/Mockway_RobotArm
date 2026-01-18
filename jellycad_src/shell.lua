@@ -80,8 +80,12 @@ function model_shell()
     return shell:copy()
 end
 
-local export_product = false
-if export_product then
-    model_shell():color('turquoise'):export_step('shell.step'):show()
+if config.generate_step_file then
+    -- 生成STEP文件用于3D打印
+    model_shell():color('turquoise'):export_step('shell.step')
+end
+if not debug.getinfo(3, "S") then
+    -- 此文件为主模块时，显示完整模型
+    model_shell():color('turquoise'):show()
 end
 return { m = model_shell0():scale(1e-3) }

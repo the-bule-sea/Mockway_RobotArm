@@ -47,9 +47,13 @@ local function model_elbow()
     return elbow:copy()
 end
 
-local export_product = false
-if export_product then
-    model_elbow():color('turquoise'):export_step('elbow.step'):show()
+if config.generate_step_file then
+    -- 生成STEP文件用于3D打印
+    model_elbow():color('turquoise'):export_step('elbow.step')
+end
+if not debug.getinfo(3, "S") then
+    -- 此文件为主模块时，显示完整模型
+    model_elbow():color('turquoise'):show()
 end
 
 return { m = model_elbow0():scale(1e-3) }

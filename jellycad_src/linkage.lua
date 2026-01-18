@@ -40,6 +40,18 @@ if export_product then
     model_arm_link(config.h_fore_arm):color('turquoise'):export_step('fore_arm.step'):show()
 end
 
+
+if config.generate_step_file then
+    -- 生成STEP文件用于3D打印
+    model_arm_link(config.h_upper_arm):color('turquoise'):export_step('upper_arm.step')
+    model_arm_link(config.h_fore_arm):color('turquoise'):export_step('fore_arm.step')
+end
+if not debug.getinfo(3, "S") then
+    -- 此文件为主模块时，显示完整模型
+    model_arm_link(config.h_upper_arm):color('turquoise'):show()
+    model_arm_link(config.h_fore_arm):color('turquoise'):show()
+end
+
 return {
     m1 = model_arm_link0(config.h_upper_arm):copy():scale(1e-3),
     m2 = model_arm_link0(config.h_fore_arm):copy():scale(1e-3)

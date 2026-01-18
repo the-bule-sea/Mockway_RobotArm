@@ -10,6 +10,7 @@ local flank = require('flank')
 local linkage = require('linkage')
 local elbow = require('elbow')
 local tail = require('tail')
+local lid = require('lid')
 local config = require('config')
 
 local motor4310 = cylinder.new(config.r_motor * 1e-3, 45 * 1e-3):color('black')

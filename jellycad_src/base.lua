@@ -46,9 +46,13 @@ local function model_base()
     return base:copy()
 end
 
-local export_product = false
-if export_product then
-    model_base():color('turquoise'):export_step('base.step'):show()
+if config.generate_step_file then
+    -- 生成STEP文件用于3D打印
+    model_base():color('turquoise'):export_step('base.step')
+end
+if not debug.getinfo(3, "S") then
+    -- 此文件为主模块时，显示完整模型
+    model_base():color('turquoise'):show()
 end
 
 return { m = model_base0():scale(1e-3) }
