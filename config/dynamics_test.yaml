@@ -53,7 +53,7 @@ control:
   # MIT控制参数
   mit_params:
     kp: 0.0                          # 位置增益（纯力矩控制时设为0）
-    kd: 1.0                          # 阻尼增益
+    kd: 0.0                          # 阻尼增益
 
 # 日志配置
 logging:
