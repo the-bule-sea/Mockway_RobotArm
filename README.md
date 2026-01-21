@@ -5,7 +5,9 @@
 [![robotarm_base](doc/img/cover.jpg)](https://www.bilibili.com/video/BV1AxrbBWEjN/)
 [视频展示](https://www.bilibili.com/video/BV1AxrbBWEjN/)
 
-（视频中测试程序为`tools/dynamics_test/real/inverse_dynamics_test.py`脚本，运行后选择1-重力补偿模式，根据实际情况配置`config/dynamics.yaml`中串口等信息）
+> 视频中测试程序为`tools/dynamics_test/real/inverse_dynamics_test.py`脚本
+> 运行后选择1-重力补偿模式
+> 根据实际情况配置`tools/dynamics_test/dynamics_test.yaml`中串口等信息
 
 CAN设备使用[维特USB-CAN模块](https://detail.tmall.com/item.htm?id=598670674373&skuId=4483773298672)
 

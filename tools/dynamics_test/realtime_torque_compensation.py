@@ -30,7 +30,7 @@ from dm_motor_driver import WitMotionUSBCAN, DMMotor, MotorType, MotorState
 from config_loader import load_config, DynamicsTestConfig, get_default_config, print_config_summary
 
 # Default configuration file path
-DEFAULT_CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "dynamics_test.yaml"
+DEFAULT_CONFIG_PATH = Path(__file__).parent / "dynamics_test.yaml"
 
 
 class MockwayDynamics:

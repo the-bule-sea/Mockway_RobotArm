@@ -186,7 +186,7 @@ def load_config(config_path: Optional[str] = None) -> DynamicsTestConfig:
     """
     # 如果没有指定路径，使用默认路径
     if config_path is None:
-        config_path = Path(__file__).parent.parent.parent / "config" / "dynamics_test.yaml"
+        config_path = Path(__file__).parent / "dynamics_test.yaml"
     else:
         config_path = Path(config_path)
 
@@ -328,7 +328,7 @@ if __name__ == "__main__":
 
     # 测试加载配置文件
     print("\n2. 测试加载配置文件:")
-    config_path = Path(__file__).parent.parent.parent / "config" / "dynamics_test.yaml"
+    config_path = Path(__file__).parent / "dynamics_test.yaml"
     if config_path.exists():
         config = load_config(str(config_path))
         print_config_summary(config)
