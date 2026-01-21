@@ -27,11 +27,15 @@ CAN设备使用[维特USB-CAN模块](https://detail.tmall.com/item.htm?id=598670
 python tools/motor_gui/motor_gui.py
 ```
 
+![motor_gui](doc/img/motor_gui.png)
+
 ### 力矩补偿
 
 ```bash
 python tools/dynamics_test/realtime_torque_compensation.py
 ```
+
+![torque_compensation](doc/img/torque_compensation.png)
 
 ### 运行MoveIt!
 
@@ -66,6 +70,7 @@ source ~/mockway_ws/install/setup.bash
 ros2 launch moveit_mockway_config demo.launch.py
 ```
 
+![moveit_demo](doc/img/moveit_demo.png)
 
 ## 物料清单
 
