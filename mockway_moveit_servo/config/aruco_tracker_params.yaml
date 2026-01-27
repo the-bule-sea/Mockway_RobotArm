@@ -1,0 +1,24 @@
+# ArUco Tracker Configuration Parameters
+
+aruco_tracker:
+  ros__parameters:
+    # Marker configuration
+    marker_size: 0.03           # Marker size in meters (3cm)
+    aruco_dict: "4X4_50"        # ArUco dictionary type
+
+    # Camera topics
+    camera_topic: "/camera/image_raw"
+    camera_info_topic: "/camera/camera_info"
+
+    # Filtering parameters
+    filter_window_size: 5       # Moving average window size (samples)
+    alpha: 0.3                  # Low-pass filter coefficient (0-1)
+                                # Lower = smoother but slower response
+                                # Higher = faster but more noise
+
+    # Output configuration
+    publish_tf: true            # Publish TF transform
+    target_frame: "aruco_marker"  # Target frame ID
+
+    # Use simulation time (set to false for real robot)
+    use_sim_time: false
