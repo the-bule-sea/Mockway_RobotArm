@@ -16,6 +16,7 @@
   <depend>cv_bridge</depend>
   <depend>tf2_ros</depend>
   <depend>robot_state_publisher</depend>
+  <depend>moveit_servo</depend>
 
   <!-- Gazebo Harmonic simulation (optional) -->
   <exec_depend>ros_gz_sim</exec_depend>
