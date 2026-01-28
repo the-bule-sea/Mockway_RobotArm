@@ -7,7 +7,7 @@
 ### 1. 编译
 
 ```bash
-cd /Users/xiaomuxing/ws/mockway_robotics
+cd ~/mockway_ws
 colcon build --packages-select mockway_moveit_servo
 source install/setup.bash
 ```
