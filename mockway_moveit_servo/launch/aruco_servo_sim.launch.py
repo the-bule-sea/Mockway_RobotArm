@@ -122,7 +122,7 @@ def generate_launch_description():
         }.items()
     )
 
-    # Bridge Gazebo topics to ROS 2 (camera only)
+    # Bridge Gazebo topics to ROS 2 (camera and joint commands)
     gz_bridge = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
@@ -130,6 +130,13 @@ def generate_launch_description():
         arguments=[
             '/camera@sensor_msgs/msg/Image@gz.msgs.Image',
             '/camera/camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo',
+            # Joint position command bridges (ROS -> Gazebo)
+            '/gz/mockway/joint1/cmd_pos@std_msgs/msg/Float64]gz.msgs.Double',
+            '/gz/mockway/joint2/cmd_pos@std_msgs/msg/Float64]gz.msgs.Double',
+            '/gz/mockway/joint3/cmd_pos@std_msgs/msg/Float64]gz.msgs.Double',
+            '/gz/mockway/joint4/cmd_pos@std_msgs/msg/Float64]gz.msgs.Double',
+            '/gz/mockway/joint5/cmd_pos@std_msgs/msg/Float64]gz.msgs.Double',
+            '/gz/mockway/joint6/cmd_pos@std_msgs/msg/Float64]gz.msgs.Double',
         ],
         remappings=[
             ('/camera', '/camera/image_raw'),
@@ -149,6 +156,18 @@ def generate_launch_description():
             '-z', '0.0',
         ],
         output='screen'
+    )
+
+    # Bridge joint states from ros2_control to Gazebo
+    gz_joint_bridge = Node(
+        package='mockway_moveit_servo',
+        executable='gz_joint_state_bridge.py',
+        name='gz_joint_state_bridge',
+        output='screen',
+        parameters=[{
+            'model_name': 'mockway',
+            'joint_names': ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6'],
+        }]
     )
 
     # Robot state publisher
@@ -304,6 +323,7 @@ def generate_launch_description():
             servo_node,
             aruco_tracker_node,
             aruco_servo_follower_node,
+            gz_joint_bridge,
         ]
     )
 

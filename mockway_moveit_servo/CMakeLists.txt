@@ -41,6 +41,7 @@ install(PROGRAMS
   scripts/keyboard_servo.py
   scripts/aruco_tracker.py
   scripts/aruco_servo_follower.py
+  scripts/gz_joint_state_bridge.py
   scripts/generate_aruco_marker.py
   scripts/test_aruco_detection.py
   DESTINATION lib/${PROJECT_NAME})

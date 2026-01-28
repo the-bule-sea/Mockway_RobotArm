@@ -5,6 +5,14 @@
     <!-- Import the base mockway robot URDF -->
     <xacro:include filename="$(find mockway_description)/urdf/mockway_description.urdf" />
 
+    <!-- World link and fixed joint to ground the robot -->
+    <link name="world"/>
+    <joint name="world_to_base" type="fixed">
+        <parent link="world"/>
+        <child link="base_link"/>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint>
+
     <!-- Load initial positions -->
     <xacro:property name="initial_positions_file" value="$(arg initial_positions_file)" />
     <xacro:property name="initial_positions" value="${xacro.load_yaml(initial_positions_file)['initial_positions']}" />
@@ -75,6 +83,58 @@
             <state_interface name="velocity"/>
         </joint>
     </ros2_control>
+
+    <!-- Gazebo joint position controllers for each joint -->
+    <gazebo>
+        <plugin filename="gz-sim-joint-position-controller-system"
+                name="gz::sim::systems::JointPositionController">
+            <joint_name>joint1</joint_name>
+            <topic>/gz/mockway/joint1/cmd_pos</topic>
+            <p_gain>100</p_gain>
+            <i_gain>0.1</i_gain>
+            <d_gain>10</d_gain>
+        </plugin>
+        <plugin filename="gz-sim-joint-position-controller-system"
+                name="gz::sim::systems::JointPositionController">
+            <joint_name>joint2</joint_name>
+            <topic>/gz/mockway/joint2/cmd_pos</topic>
+            <p_gain>100</p_gain>
+            <i_gain>0.1</i_gain>
+            <d_gain>10</d_gain>
+        </plugin>
+        <plugin filename="gz-sim-joint-position-controller-system"
+                name="gz::sim::systems::JointPositionController">
+            <joint_name>joint3</joint_name>
+            <topic>/gz/mockway/joint3/cmd_pos</topic>
+            <p_gain>100</p_gain>
+            <i_gain>0.1</i_gain>
+            <d_gain>10</d_gain>
+        </plugin>
+        <plugin filename="gz-sim-joint-position-controller-system"
+                name="gz::sim::systems::JointPositionController">
+            <joint_name>joint4</joint_name>
+            <topic>/gz/mockway/joint4/cmd_pos</topic>
+            <p_gain>100</p_gain>
+            <i_gain>0.1</i_gain>
+            <d_gain>10</d_gain>
+        </plugin>
+        <plugin filename="gz-sim-joint-position-controller-system"
+                name="gz::sim::systems::JointPositionController">
+            <joint_name>joint5</joint_name>
+            <topic>/gz/mockway/joint5/cmd_pos</topic>
+            <p_gain>100</p_gain>
+            <i_gain>0.1</i_gain>
+            <d_gain>10</d_gain>
+        </plugin>
+        <plugin filename="gz-sim-joint-position-controller-system"
+                name="gz::sim::systems::JointPositionController">
+            <joint_name>joint6</joint_name>
+            <topic>/gz/mockway/joint6/cmd_pos</topic>
+            <p_gain>100</p_gain>
+            <i_gain>0.1</i_gain>
+            <d_gain>10</d_gain>
+        </plugin>
+    </gazebo>
 
     <!-- Gazebo material colors -->
     <gazebo reference="base_link">
