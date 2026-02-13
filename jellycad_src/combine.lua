@@ -22,6 +22,7 @@ local m1_linkage = linkage.m1:copy()
 local m2_linkage = linkage.m2:copy()
 local m_elbow = elbow.m:copy()
 local m_tail = tail.m:copy()
+local m_lid = lid.m:copy()
 
 -- 设置各个部件的质量
 motor4310:mass(295 * 1e-3)
@@ -33,6 +34,7 @@ m1_linkage:mass((70.5 + 10) * 1e-3)
 m2_linkage:mass((57.8 + 10) * 1e-3)
 m_elbow:mass((41.8) * 1e-3)
 m_tail:mass((15.8) * 1e-3)
+m_lid:mass((7) * 1e-3)
 -- 【基座】
 local base_link = {}
 base_link[1] = m_base:copy()
@@ -53,6 +55,7 @@ shoulder[1] = m_shell:copy():z((config.h_base + config.h_flank_reserve) * 1e-3)
 shoulder[2] = motor4310:copy():z((config.h_base + config.h_flank_reserve + config.thickness) * 1e-3)
 shoulder[3] = m_flank:copy():rot(90, 0, 0):y((-config.r_outer) * 1e-3)
     :z((h0_shoulder) * 1e-3):color('#8470FF')
+shoulder[4] = m_lid:copy():z((config.h_base + config.h_flank_reserve + 2 * config.r_outer) * 1e-3):color('#8470FF')
 -- 【上臂】
 local upperarm = {}
 upperarm[1] = m_shell:copy():rot(180, -90, -90)
@@ -72,6 +75,12 @@ upperarm[4] = motor4340:copy():rot(0, 90, -90)
 upperarm[5] = m1_linkage:copy()
     :y(-(2 * config.r_outer + config.h_flank + config.h_flank_reserve) * 1e-3)
     :z((h0_shoulder + config.r_outer) * 1e-3):color('#31C5C5')
+upperarm[6] = m_lid:copy():rot(90, 0, 0)
+    :y(-(config.r_outer + config.h_flank + config.h_flank_reserve + 2 * config.r_outer) * 1e-3)
+    :z((h0_shoulder) * 1e-3):color('#31C5C5')
+upperarm[4] = m_lid:copy():rot(90, 0, 0)
+    :y(-(config.r_outer + config.h_flank + config.h_flank_reserve + 2 * config.r_outer) * 1e-3)
+    :z((h1_shoulder) * 1e-3):color('#31C5C5')
 -- 【前臂】
 local forearm = {}
 forearm[1] = m_flank:copy():rot(90, 0, 0)
@@ -92,6 +101,10 @@ forearm[4] = m_shell:copy():rot(0, 90, 90)
 forearm[5] = motor4310:copy():rot(0, 90, 90)
     :y(-(config.r_outer - config.thickness) * 1e-3)
     :z((h1_shoulder + 2 * config.r_outer + config.h_fore_arm) * 1e-3)
+forearm[6] = m_lid:copy():rot(90, 0, 180)
+    :y(-(config.r_outer - 2 * config.r_outer) * 1e-3)
+    :z((h1_shoulder + 2 * config.r_outer + config.h_fore_arm) * 1e-3)
+    :color('#FF7F50')
 
 -- 【手腕1】
 local wrist1 = {}
@@ -106,6 +119,10 @@ wrist1[3] = m_flank:copy():rot(-90, 0, 0)
     :y(-(config.r_outer + config.h_flank_sum - config.thickness + config.h_motor_convex) * 1e-3)
     :z((h1_shoulder + 2 * config.r_outer + config.h_fore_arm) * 1e-3)
     :color('#DA70D6')
+wrist1[4] = m_lid:copy():rot(180, 0, 0)
+    :y(-(w0_wrist) * 1e-3)
+    :z((h1_shoulder + 3 * config.r_outer + config.h_fore_arm - 2 * config.r_outer) * 1e-3)
+    :color('#DA70D6')
 
 -- 【手腕2】
 local wrist2 = {}
@@ -119,6 +136,10 @@ wrist2[2] = motor4310:copy():rot(0, 90, 90)
 wrist2[3] = m_flank:copy():rot(180, 0, 0)
     :y(-(w0_wrist) * 1e-3)
     :z((w1_wrist) * 1e-3)
+    :color('#4682B4')
+wrist2[4] = m_lid:copy():rot(90, 0, 180)
+    :y(-(w0_wrist + config.r_outer - 2 * config.r_outer) * 1e-3)
+    :z((w1_wrist + config.r_outer) * 1e-3)
     :color('#4682B4')
 
 local wrist3 = {}

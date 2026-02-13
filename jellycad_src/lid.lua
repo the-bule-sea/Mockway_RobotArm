@@ -8,6 +8,7 @@ local config = require('config')
 
 local function model_lid0()
     local lid0 = cylinder.new(config.r_shell_outer, 2)
+    lid0:fuse(text.new('mockway', 10):x(-20):y(-3):prism(0, 0, (2 + 0.4)))
     return lid0:copy()
 end
 
@@ -20,7 +21,6 @@ local function model_lid()
         local y0 = len * math.cos(rad);
         lid:cut(cylinder.new(1.1, 4):pos(x0, y0, 0))
     end
-    lid:fuse(text.new('mockway', 10):x(-20):y(-3):prism(0, 0, (2 + 0.4)))
     return lid:copy()
 end
 if config.generate_step_file then
@@ -31,4 +31,4 @@ if not debug.getinfo(3, "S") then
     -- 此文件为主模块时，显示完整模型
     model_lid():color('turquoise'):show()
 end
-return { m = model_lid():scale(1e-3) }
+return { m = model_lid0():scale(1e-3) }
