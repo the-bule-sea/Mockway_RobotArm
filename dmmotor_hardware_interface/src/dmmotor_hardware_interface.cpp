@@ -393,6 +393,7 @@ hardware_interface::CallbackReturn DMMototHardwareInterface::on_deactivate(
 hardware_interface::return_type DMMototHardwareInterface::read(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
+#if 1
   struct can_frame frame;
   
   // 读取CAN帧，非阻塞模式
@@ -407,6 +408,13 @@ hardware_interface::return_type DMMototHardwareInterface::read(
       }
     }
   }
+#else
+  for (auto& motor : motors_) {
+    if (!motor.is_simulated) {
+      motor.position = motor.cmd_position;
+    }
+  }
+#endif
   
   // 处理仿真电机：直接将cmd_position赋值给position
   for (auto& motor : motors_) {

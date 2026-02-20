@@ -33,8 +33,8 @@
             <!-- Joint 2: DM4340 -->
             <joint name="joint2">
                 <param name="can_id">0x02</param>
-                <param name="kp">350.0</param>
-                <param name="kd">2.0</param>
+                <param name="kp">500.0</param>
+                <param name="kd">3.0</param>
                 <param name="type">3</param>
                 <param name="dir">1</param>
                 <param name="is_simulated">false</param>
@@ -47,7 +47,7 @@
             <!-- Joint 3: DM4340 -->
             <joint name="joint3">
                 <param name="can_id">0x03</param>
-                <param name="kp">350.0</param>
+                <param name="kp">450.0</param>
                 <param name="kd">2.0</param>
                 <param name="type">3</param>
                 <param name="dir">-1</param>
@@ -61,7 +61,7 @@
             <!-- Joint 4: DM-J4310-2EC -->
             <joint name="joint4">
                 <param name="can_id">0x04</param>
-                <param name="kp">50.0</param>
+                <param name="kp">90.0</param>
                 <param name="kd">1.0</param>
                 <param name="type">1</param>
                 <param name="dir">1</param>
@@ -76,7 +76,7 @@
             <joint name="joint5">
                 <param name="can_id">0x05</param>
                 <param name="kp">50.0</param>
-                <param name="kd">1.0</param>
+                <param name="kd">0.8</param>
                 <param name="type">1</param>
                 <param name="dir">1</param>
                 <param name="is_simulated">false</param>
@@ -90,7 +90,7 @@
             <joint name="joint6">
                 <param name="can_id">0x06</param>
                 <param name="kp">50.0</param>
-                <param name="kd">1.0</param>
+                <param name="kd">0.8</param>
                 <param name="type">1</param>
                 <param name="dir">1</param>
                 <param name="is_simulated">false</param>
