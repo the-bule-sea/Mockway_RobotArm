@@ -204,23 +204,31 @@ class MotorControlGUI:
         param_subframe = ttk.Frame(position_frame)
         param_subframe.grid(row=1, column=0, columnspan=2, pady=(0, 10), sticky="ew")
 
-        # 第一行：Kp和Kd
+        # 第一行：Kp和Kd（带步进按钮）
         ttk.Label(param_subframe, text="Kp:", font=("Arial", 9)).grid(row=0, column=0, sticky="w")
         self.kp_var = tk.StringVar(value="40.0")
         ttk.Entry(param_subframe, textvariable=self.kp_var, width=8).grid(row=0, column=1, padx=5, sticky="w")
+        kp_btn_frame = ttk.Frame(param_subframe)
+        kp_btn_frame.grid(row=0, column=2, sticky="w")
+        ttk.Button(kp_btn_frame, text="-", width=2, command=lambda: self._step_var(self.kp_var, -1.0, 0.0)).pack(side="left")
+        ttk.Button(kp_btn_frame, text="+", width=2, command=lambda: self._step_var(self.kp_var, 1.0, 0.0)).pack(side="left")
 
-        ttk.Label(param_subframe, text="Kd:", font=("Arial", 9)).grid(row=0, column=2, sticky="w", padx=(15, 0))
+        ttk.Label(param_subframe, text="Kd:", font=("Arial", 9)).grid(row=0, column=3, sticky="w", padx=(15, 0))
         self.kd_var = tk.StringVar(value="1.0")
-        ttk.Entry(param_subframe, textvariable=self.kd_var, width=8).grid(row=0, column=3, padx=5, sticky="w")
+        ttk.Entry(param_subframe, textvariable=self.kd_var, width=8).grid(row=0, column=4, padx=5, sticky="w")
+        kd_btn_frame = ttk.Frame(param_subframe)
+        kd_btn_frame.grid(row=0, column=5, sticky="w")
+        ttk.Button(kd_btn_frame, text="-", width=2, command=lambda: self._step_var(self.kd_var, -0.1, 0.0)).pack(side="left")
+        ttk.Button(kd_btn_frame, text="+", width=2, command=lambda: self._step_var(self.kd_var, 0.1, 0.0)).pack(side="left")
 
         # 第二行：最大速度和最大加速度
         ttk.Label(param_subframe, text="最大速度 (rad/s):", font=("Arial", 9)).grid(row=1, column=0, sticky="w", pady=(5, 0))
         self.max_velocity_var = tk.StringVar(value="8.0")
         ttk.Entry(param_subframe, textvariable=self.max_velocity_var, width=8).grid(row=1, column=1, padx=5, pady=(5, 0), sticky="w")
 
-        ttk.Label(param_subframe, text="最大加速度 (rad/s²):", font=("Arial", 9)).grid(row=1, column=2, sticky="w", padx=(15, 0), pady=(5, 0))
+        ttk.Label(param_subframe, text="最大加速度 (rad/s²):", font=("Arial", 9)).grid(row=1, column=3, sticky="w", padx=(15, 0), pady=(5, 0))
         self.max_acceleration_var = tk.StringVar(value="15.0")
-        ttk.Entry(param_subframe, textvariable=self.max_acceleration_var, width=8).grid(row=1, column=3, padx=5, pady=(5, 0), sticky="w")
+        ttk.Entry(param_subframe, textvariable=self.max_acceleration_var, width=8).grid(row=1, column=4, padx=5, pady=(5, 0), sticky="w")
 
         # 分隔线
         ttk.Separator(position_frame, orient="horizontal").grid(row=2, column=0, columnspan=2, sticky="ew", pady=10)
@@ -404,6 +412,16 @@ class MotorControlGUI:
         ttk.Label(status_frame, text="使能反馈:").grid(row=3, column=3, sticky="w", padx=(20, 0), pady=(5, 0))
         self.enabled_feedback_label = ttk.Label(status_frame, text="--", foreground="gray", font=("Arial", 9))
         self.enabled_feedback_label.grid(row=3, column=4, columnspan=2, sticky="w", padx=10, pady=(5, 0))
+
+    def _step_var(self, var, step, min_val):
+        """步进调整变量值"""
+        try:
+            value = float(var.get()) + step
+            if value < min_val:
+                value = min_val
+            var.set(f"{value:.1f}")
+        except ValueError:
+            pass
 
     def toggle_connection(self):
         """切换连接状态"""
