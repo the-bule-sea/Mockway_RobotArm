@@ -390,15 +390,20 @@ class MotorControlGUI:
         self.temp_label = ttk.Label(status_frame, text="-- °C", foreground="blue", font=("Arial", 9))
         self.temp_label.grid(row=1, column=5, sticky="w", padx=10, pady=(5, 0))
 
+        # 位置差值
+        ttk.Label(status_frame, text="位置差值:").grid(row=2, column=0, sticky="w", pady=(5, 0))
+        self.position_error_label = ttk.Label(status_frame, text="-- rad", foreground="darkred", font=("Arial", 9))
+        self.position_error_label.grid(row=2, column=1, sticky="w", padx=10, pady=(5, 0))
+
         # 错误状态
-        ttk.Label(status_frame, text="错误状态:").grid(row=2, column=0, sticky="w", pady=(5, 0))
+        ttk.Label(status_frame, text="错误状态:").grid(row=3, column=0, sticky="w", pady=(5, 0))
         self.error_label = ttk.Label(status_frame, text="--", foreground="green", font=("Arial", 9))
-        self.error_label.grid(row=2, column=1, columnspan=2, sticky="w", padx=10, pady=(5, 0))
+        self.error_label.grid(row=3, column=1, columnspan=2, sticky="w", padx=10, pady=(5, 0))
 
         # 使能状态反馈
-        ttk.Label(status_frame, text="使能反馈:").grid(row=2, column=3, sticky="w", padx=(20, 0), pady=(5, 0))
+        ttk.Label(status_frame, text="使能反馈:").grid(row=3, column=3, sticky="w", padx=(20, 0), pady=(5, 0))
         self.enabled_feedback_label = ttk.Label(status_frame, text="--", foreground="gray", font=("Arial", 9))
-        self.enabled_feedback_label.grid(row=2, column=4, columnspan=2, sticky="w", padx=10, pady=(5, 0))
+        self.enabled_feedback_label.grid(row=3, column=4, columnspan=2, sticky="w", padx=10, pady=(5, 0))
 
     def toggle_connection(self):
         """切换连接状态"""
@@ -1077,6 +1082,12 @@ class MotorControlGUI:
                     cmd_angle_deg = cmd_pos * 180 / 3.14159
                     self.cmd_position_label.config(text=f"{cmd_pos:.3f} rad ({cmd_angle_deg:.1f}°)")
                     self.cmd_velocity_label.config(text=f"{cmd_vel:.3f} rad/s")
+
+                    # 更新位置差值
+                    pos_error = cmd_pos - state.position
+                    pos_error_deg = pos_error * 180 / 3.14159
+                    error_color = "green" if abs(pos_error) < 0.01 else ("orange" if abs(pos_error) < 0.1 else "red")
+                    self.position_error_label.config(text=f"{pos_error:.3f} rad ({pos_error_deg:.1f}°)", foreground=error_color)
 
                     # 更新错误状态（不论是否使能都显示）
                     if state.error.value == 0:
