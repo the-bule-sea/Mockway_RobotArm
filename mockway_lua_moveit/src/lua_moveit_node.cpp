@@ -363,7 +363,7 @@ private:
         }
 
         moveit::planning_interface::MoveGroupInterface::Plan plan;
-        plan.trajectory_ = trajectory;
+        plan.trajectory = trajectory;
         auto ret = move_group_->execute(plan);
         bool ok = (ret == moveit::core::MoveItErrorCode::SUCCESS);
         RCLCPP_INFO(get_logger(), "move_linear -> %s", ok ? "成功" : "失败");
@@ -402,7 +402,7 @@ private:
           return false;
         }
         moveit::planning_interface::MoveGroupInterface::Plan plan;
-        plan.trajectory_ = trajectory;
+        plan.trajectory = trajectory;
         auto ret = move_group_->execute(plan);
         return (ret == moveit::core::MoveItErrorCode::SUCCESS);
       });
@@ -454,7 +454,7 @@ private:
           return false;
         }
         moveit::planning_interface::MoveGroupInterface::Plan plan;
-        plan.trajectory_ = trajectory;
+        plan.trajectory = trajectory;
         auto ret = move_group_->execute(plan);
         return (ret == moveit::core::MoveItErrorCode::SUCCESS);
       });
