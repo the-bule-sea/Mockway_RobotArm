@@ -151,7 +151,7 @@ private:
     lua_.open_libraries(
       sol::lib::base, sol::lib::string, sol::lib::table,
       sol::lib::math,  sol::lib::io,     sol::lib::os,
-      sol::lib::coroutine);
+      sol::lib::coroutine, sol::lib::package);
 
     auto R = lua_.create_named_table("robot");
 
