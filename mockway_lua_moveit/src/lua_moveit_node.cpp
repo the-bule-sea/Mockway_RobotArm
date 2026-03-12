@@ -23,8 +23,8 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/executors/single_threaded_executor.hpp>
 
-#include <moveit/move_group_interface/move_group_interface.h>
-#include <moveit/planning_scene_interface/planning_scene_interface.h>
+#include <moveit/move_group_interface/move_group_interface.hpp>
+#include <moveit/planning_scene_interface/planning_scene_interface.hpp>
 #include <moveit_msgs/srv/servo_command_type.hpp>
 
 #include <geometry_msgs/msg/twist_stamped.hpp>
@@ -352,7 +352,7 @@ private:
 
         std::lock_guard<std::mutex> lk(mg_mutex_);
         double fraction = move_group_->computeCartesianPath(
-          waypoints, step, 0.0, trajectory);
+          waypoints, step, trajectory);
 
         RCLCPP_INFO(get_logger(), "直线规划完成率: %.1f%%", fraction * 100.0);
         if (fraction < min_frac) {
@@ -395,7 +395,7 @@ private:
 
         std::lock_guard<std::mutex> lk(mg_mutex_);
         double fraction = move_group_->computeCartesianPath(
-          waypoints, step, 0.0, trajectory);
+          waypoints, step, trajectory);
 
         if (fraction < 0.9) {
           RCLCPP_WARN(get_logger(), "直线规划完成率过低: %.1f%%", fraction * 100.0);
@@ -448,7 +448,7 @@ private:
 
         std::lock_guard<std::mutex> lk(mg_mutex_);
         double fraction = move_group_->computeCartesianPath(
-          waypoints, step, 0.0, trajectory);
+          waypoints, step, trajectory);
         if (fraction < 0.9) {
           RCLCPP_WARN(get_logger(), "相对直线规划完成率过低: %.1f%%", fraction * 100.0);
           return false;
