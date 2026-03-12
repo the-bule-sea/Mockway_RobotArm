@@ -35,7 +35,11 @@ local dt         = 0.02  -- 控制周期 s
 
 -- ── 辅助：单轴定时点动 ───────────────────────────────────────────────────────
 local function jog_single(idx, vel, duration)
-  robot.log(string.format("  >> joint%d 以 %.2f rad/s 点动 %.1fs", idx, vel, duration))
+  if type(idx) == "number" then
+    robot.log(string.format("  >> joint%d 以 %.2f rad/s 点动 %.1fs", idx, vel, duration))
+  else
+    robot.log(string.format("  >> %s 以 %.2f rad/s 点动 %.1fs", idx, vel, duration))
+  end
   local t = 0.0
   while t < duration and robot.ok() do
     robot.servo_joint(idx, vel)
