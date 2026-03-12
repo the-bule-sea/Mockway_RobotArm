@@ -1,13 +1,14 @@
 """
-servo_with_moveit.launch.py
+mockway.launch.py
 
-同时启动 MoveIt（move_group）和 MoveIt Servo：
+Mockway 机械臂完整启动：MoveIt（move_group）+ MoveIt Servo + RViz。
+
   - move_group、robot_state_publisher、ros2_control、controllers（来自 demo.launch.py）
   - servo_node（独立节点）
   - RViz（使用 servo 专用配置）
 
 启动方式：
-  ros2 launch mockway_moveit_servo servo_with_moveit.launch.py
+  ros2 launch mockway_bringup mockway.launch.py
 
 可选参数：
   with_rviz (bool, default true)  — 是否显示 RViz
@@ -18,17 +19,16 @@ import os
 import launch
 import launch_ros
 from ament_index_python.packages import get_package_share_directory
-from launch.actions import IncludeLaunchDescription
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
 from launch_param_builder import ParameterBuilder
 from moveit_configs_utils import MoveItConfigsBuilder
 
 
 def generate_launch_description():
-    # ── MoveIt 配置（与 demo / servo 保持一致）──────────────────────────────
+    # ── MoveIt 配置 ───────────────────────────────────────────────────────────
     moveit_config = (
         MoveItConfigsBuilder("mockway_description", package_name="moveit_mockway_config")
         .robot_description(file_path="config/mockway_description.urdf.xacro")
@@ -36,14 +36,14 @@ def generate_launch_description():
         .to_moveit_configs()
     )
 
-    # ── 启动参数 ─────────────────────────────────────────────────────────────
+    # ── 启动参数 ──────────────────────────────────────────────────────────────
     # 注意：不使用 "use_rviz" 命名，避免与 demo.launch.py 内部同名参数冲突
     # （IncludeLaunchDescription 的 launch_arguments 会全局覆盖同名 LaunchConfiguration）
     use_rviz_arg = DeclareLaunchArgument(
         "with_rviz", default_value="true", description="是否启动 RViz"
     )
 
-    # ── demo.launch.py（move_group + rsp + ros2_control + controllers）───────
+    # ── demo.launch.py（move_group + rsp + ros2_control + controllers）────────
     demo_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(

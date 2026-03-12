@@ -126,29 +126,26 @@ Visualization Manager:
           Value: true
         link6:
           Value: true
-        world:
-          Value: true
       Marker Scale: 1
       Name: TF
       Show Arrows: true
       Show Axes: true
       Show Names: false
       Tree:
-        world:
-          base_link:
-            link1:
-              link2:
-                link3:
-                  link4:
-                    link5:
-                      link6:
-                        {}
+        base_link:
+          link1:
+            link2:
+              link3:
+                link4:
+                  link5:
+                    link6:
+                      {}
       Update Interval: 0
       Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: world
+    Fixed Frame: base_link
     Frame Rate: 30
   Name: root
   Tools:
@@ -225,5 +222,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 1586
-  X: 1104
-  Y: 682
+  X: 1121
+  Y: 689

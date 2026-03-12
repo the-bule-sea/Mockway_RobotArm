@@ -10,7 +10,7 @@
 |---|---|
 | 仅 MoveIt（PTP / 直线运动） | `ros2 launch moveit_mockway_config demo.launch.py` |
 | 仅 Servo（手动点动） | `ros2 launch mockway_moveit_servo servo.launch.py` |
-| MoveIt + Servo | `ros2 launch mockway_moveit_servo servo_with_moveit.launch.py` |
+| MoveIt + Servo | `ros2 launch mockway_bringup mockway.launch.py` |
 
 ## 快速启动
 
