@@ -4,8 +4,11 @@
  * 前端 HTTP/SSE 后端服务实现。
  */
 
-#include "mockway_lua_moveit/http_server.hpp"
+// lua_moveit_node.hpp must be included first to pull in Eigen before httplib.h,
+// because resolv.h (included transitively by httplib.h) defines `#define _res (*__res_state())`
+// which corrupts Eigen template parameter names.
 #include "mockway_lua_moveit/lua_moveit_node.hpp"
+#include "mockway_lua_moveit/http_server.hpp"
 
 #include <nlohmann/json.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>

@@ -41,17 +41,10 @@ message(STATUS "Found Lua ${LUA_VERSION_STRING}: ${LUA_LIBRARIES}")
 # ── sol2 (via ros-jazzy-sol-vendor) ───────────────────────────────────────
 find_package(sol_vendor REQUIRED)
 
-# ── cpp-httplib（header-only） ────────────────────────────────────────────
-find_path(HTTPLIB_INCLUDE_DIR NAMES httplib.h
-  HINTS /usr/include /usr/local/include
-  DOC "cpp-httplib header directory"
-)
-if(NOT HTTPLIB_INCLUDE_DIR)
-  message(FATAL_ERROR
-    "httplib.h not found. Install with:\n"
-    "  sudo apt install libcpp-httplib-dev")
-endif()
-message(STATUS "Found cpp-httplib: ${HTTPLIB_INCLUDE_DIR}/httplib.h")
+# ── cpp-httplib（shared library on Ubuntu） ───────────────────────────────
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(HTTPLIB REQUIRED cpp-httplib)
+message(STATUS "Found cpp-httplib: ${HTTPLIB_INCLUDE_DIRS}, libs: ${HTTPLIB_LIBRARIES}")
 
 # ── nlohmann_json ─────────────────────────────────────────────────────────
 find_package(nlohmann_json QUIET)
@@ -69,20 +62,20 @@ if(NOT nlohmann_json_FOUND)
 endif()
 
 # ── 前端构建（可选，npm 存在时自动执行） ────────────────────────────────────
-find_program(NPM_EXECUTABLE npm)
-if(NPM_EXECUTABLE)
-  add_custom_target(build_frontend ALL
-    COMMAND ${NPM_EXECUTABLE} install --prefer-offline
-    COMMAND ${NPM_EXECUTABLE} run build
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ui
-    COMMENT "Building frontend UI..."
-    VERBATIM
-  )
-else()
-  message(WARNING
-    "npm not found — frontend will NOT be built automatically.\n"
-    "Run manually: cd ui && npm install && npm run build")
-endif()
+# find_program(NPM_EXECUTABLE npm)
+# if(NPM_EXECUTABLE)
+#   add_custom_target(build_frontend ALL
+#     COMMAND ${NPM_EXECUTABLE} install --prefer-offline
+#     COMMAND ${NPM_EXECUTABLE} run build
+#     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ui
+#     COMMENT "Building frontend UI..."
+#     VERBATIM
+#   )
+# else()
+#   message(WARNING
+#     "npm not found — frontend will NOT be built automatically.\n"
+#     "Run manually: cd ui && npm install && npm run build")
+# endif()
 
 # ── 可执行目标 ───────────────────────────────────────────────────────────────
 add_executable(lua_moveit_node
@@ -94,17 +87,19 @@ add_executable(lua_moveit_node
 target_include_directories(lua_moveit_node PRIVATE
   include
   ${LUA_INCLUDE_DIR}
-  ${HTTPLIB_INCLUDE_DIR}
+  ${HTTPLIB_INCLUDE_DIRS}
 )
+target_compile_options(lua_moveit_node PRIVATE ${HTTPLIB_CFLAGS_OTHER})
 
 if(nlohmann_json_FOUND)
   target_link_libraries(lua_moveit_node
     ${LUA_LIBRARIES}
+    ${HTTPLIB_LIBRARIES}
     nlohmann_json::nlohmann_json
   )
 else()
   target_include_directories(lua_moveit_node PRIVATE ${NLOHMANN_JSON_INCLUDE_DIR})
-  target_link_libraries(lua_moveit_node ${LUA_LIBRARIES})
+  target_link_libraries(lua_moveit_node ${LUA_LIBRARIES} ${HTTPLIB_LIBRARIES})
 endif()
 
 ament_target_dependencies(lua_moveit_node
