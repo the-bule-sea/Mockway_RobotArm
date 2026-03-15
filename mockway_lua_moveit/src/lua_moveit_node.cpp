@@ -668,6 +668,7 @@ void LuaMoveItNode::publish_joint_jog(const std::vector<double>& vels)
   msg->header.frame_id = base_frame_;
   msg->joint_names     = defaults::JOINT_NAMES;
   msg->velocities      = vels;
+  msg->duration        = 0.5;
   joint_pub_->publish(std::move(msg));
 }
 
