@@ -14,6 +14,12 @@ const lastError = ref('')
 
 const inchPresets = [0.1, 0.5, 1, 5, 10]
 
+const JOG_JOINT_VEL = 0.3   // rad/s
+const JOG_LIN_VEL   = 0.05  // m/s
+const JOG_ROT_VEL   = 0.3   // rad/s
+
+let jogTimer = null
+
 const jointLabels = ['J1', 'J2', 'J3', 'J4', 'J5', 'J6']
 const cartLabels = ['X', 'Y', 'Z', 'Rx', 'Ry', 'Rz']
 
@@ -49,17 +55,33 @@ function handlePress(index, direction) {
   const dir = direction
 
   if (mode.value === 'jog') {
-    if (space.value === 'joint') {
-      sendLua(`JogJ(${idx}, ${dir})`)
-    } else {
-      sendLua(`JogL(${idx}, ${dir})`)
+    const sendJogCmd = () => {
+      if (space.value === 'joint') {
+        sendLua(`robot.switch_servo_mode("joint_jog"); robot.servo_joint(${idx}, ${dir * JOG_JOINT_VEL})`)
+      } else {
+        const vx  = idx === 1 ? dir * JOG_LIN_VEL : 0
+        const vy  = idx === 2 ? dir * JOG_LIN_VEL : 0
+        const vz  = idx === 3 ? dir * JOG_LIN_VEL : 0
+        const rx  = idx === 4 ? dir * JOG_ROT_VEL : 0
+        const ry  = idx === 5 ? dir * JOG_ROT_VEL : 0
+        const rz  = idx === 6 ? dir * JOG_ROT_VEL : 0
+        sendLua(`robot.switch_servo_mode("twist"); robot.servo_cartesian(${vx}, ${vy}, ${vz}, ${rx}, ${ry}, ${rz})`)
+      }
     }
+    sendJogCmd()
+    jogTimer = setInterval(sendJogCmd, 50)
   } else {
     const dist = inchDistance.value
     if (space.value === 'joint') {
-      sendLua(`InchJ(${idx}, ${dir}, ${dist})`)
+      sendLua(`local j = robot.get_joint_positions(); j[${idx}] = j[${idx}] + deg2rad(${dir * dist}); robot.move_to_joints(j)`)
     } else {
-      sendLua(`InchL(${idx}, ${dir}, ${dist})`)
+      const dx  = idx === 1 ? dir * dist / 1000 : 0
+      const dy  = idx === 2 ? dir * dist / 1000 : 0
+      const dz  = idx === 3 ? dir * dist / 1000 : 0
+      const drx = idx === 4 ? `deg2rad(${dir * dist})` : 0
+      const dry = idx === 5 ? `deg2rad(${dir * dist})` : 0
+      const drz = idx === 6 ? `deg2rad(${dir * dist})` : 0
+      sendLua(`robot.move_linear_relative(${dx}, ${dy}, ${dz}, ${drx}, ${dry}, ${drz})`)
     }
   }
 }
@@ -67,7 +89,11 @@ function handlePress(index, direction) {
 function handleRelease() {
   if (!isMoving.value) return
   isMoving.value = false
-  sendLua('Stop()')
+  if (jogTimer) {
+    clearInterval(jogTimer)
+    jogTimer = null
+  }
+  sendLua('robot.servo_stop()')
 }
 
 function formatValue(val) {
@@ -76,9 +102,13 @@ function formatValue(val) {
 }
 
 onBeforeUnmount(() => {
+  if (jogTimer) {
+    clearInterval(jogTimer)
+    jogTimer = null
+  }
   if (isMoving.value) {
     isMoving.value = false
-    sendLua('Stop()')
+    sendLua('robot.servo_stop()')
   }
 })
 </script>
