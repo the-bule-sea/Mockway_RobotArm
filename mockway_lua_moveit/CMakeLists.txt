@@ -62,20 +62,20 @@ if(NOT nlohmann_json_FOUND)
 endif()
 
 # ── 前端构建（可选，npm 存在时自动执行） ────────────────────────────────────
-# find_program(NPM_EXECUTABLE npm)
-# if(NPM_EXECUTABLE)
-#   add_custom_target(build_frontend ALL
-#     COMMAND ${NPM_EXECUTABLE} install --prefer-offline
-#     COMMAND ${NPM_EXECUTABLE} run build
-#     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ui
-#     COMMENT "Building frontend UI..."
-#     VERBATIM
-#   )
-# else()
-#   message(WARNING
-#     "npm not found — frontend will NOT be built automatically.\n"
-#     "Run manually: cd ui && npm install && npm run build")
-# endif()
+find_program(NPM_EXECUTABLE npm)
+if(NPM_EXECUTABLE)
+  add_custom_target(build_frontend ALL
+    COMMAND npm install --prefer-offline
+    COMMAND npm run build
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ui
+    COMMENT "Building frontend UI..."
+    VERBATIM
+  )
+else()
+  message(WARNING
+    "npm not found — frontend will NOT be built automatically.\n"
+    "Run manually: cd ui && npm install && npm run build")
+endif()
 
 # ── 可执行目标 ───────────────────────────────────────────────────────────────
 add_executable(lua_moveit_node
