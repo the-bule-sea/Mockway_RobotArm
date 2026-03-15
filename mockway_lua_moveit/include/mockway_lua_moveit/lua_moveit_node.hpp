@@ -12,6 +12,7 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 
+#include <atomic>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -42,7 +43,7 @@ public:
   std::vector<double> get_end_pose_rpy_raw();
 
   // 全局速度比例（0~100）
-  double get_global_ratio() const { return global_ratio_; }
+  double get_global_ratio() const { return global_ratio_.load(); }
 
 private:
   std::string planning_group_, ee_frame_, base_frame_;
@@ -65,7 +66,7 @@ private:
 
   sol::state lua_;
   std::mutex lua_mutex_;  // 串行化所有 Lua 状态访问
-  double global_ratio_ = 30.0;
+  std::atomic<double> global_ratio_{30.0};
 
   std::string declare_or_get(const std::string& name, const std::string& default_val);
   void setup_lua_api();

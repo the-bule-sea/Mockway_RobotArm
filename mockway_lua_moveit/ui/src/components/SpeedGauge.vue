@@ -12,7 +12,7 @@ const step = 5
 const min = 0
 const max = 100
 
-const displayValue = computed(() => connected.value ? globalRatio.value : 0)
+const displayValue = computed(() => connected.value ? Math.round(globalRatio.value) : 0)
 
 // Arc calculations (same as CircularGauge)
 const radius = computed(() => (props.size - 12) / 2)
@@ -29,7 +29,7 @@ async function sendRatio(value) {
     await fetch('/api/lua', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ script: `SetGlobalRatio(${value})` })
+      body: JSON.stringify({ script: `robot.set_velocity_scaling(${value / 100})` })
     })
   } catch (e) {
     console.error('Failed to set global ratio:', e)

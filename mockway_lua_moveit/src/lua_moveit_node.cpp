@@ -532,9 +532,11 @@ void LuaMoveItNode::setup_lua_api()
   // ══════════════════════════════════════════════════════════════════════════
 
   R.set_function("set_velocity_scaling", [this](double f) {
+    const double clamped = std::clamp(f, 0.01, 1.0);
+    global_ratio_.store(clamped * 100.0);
     if (!init_move_group()) return;
     std::lock_guard<std::mutex> lk(mg_mutex_);
-    move_group_->setMaxVelocityScalingFactor(std::clamp(f, 0.01, 1.0));
+    move_group_->setMaxVelocityScalingFactor(clamped);
   });
 
   R.set_function("set_acceleration_scaling", [this](double f) {
