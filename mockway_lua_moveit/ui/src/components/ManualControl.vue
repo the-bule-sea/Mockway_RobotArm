@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRobotSSE } from '../composables/useRobotSSE'
 
 const emit = defineEmits(['close'])
@@ -45,6 +45,21 @@ async function sendLua(script) {
   }
 }
 
+function setMode(m) {
+  mode.value = m
+  if (m === 'jog') {
+    const servoMode = space.value === 'joint' ? 'joint_jog' : 'twist'
+    sendLua(`robot.switch_servo_mode("${servoMode}")`)
+  }
+}
+
+function setSpace(s) {
+  space.value = s
+  if (mode.value === 'jog') {
+    const servoMode = s === 'joint' ? 'joint_jog' : 'twist'
+    sendLua(`robot.switch_servo_mode("${servoMode}")`)
+  }
+}
 
 function handlePress(index, direction) {
   if (isMoving.value) return
@@ -57,7 +72,7 @@ function handlePress(index, direction) {
   if (mode.value === 'jog') {
     const sendJogCmd = () => {
       if (space.value === 'joint') {
-        sendLua(`robot.switch_servo_mode("joint_jog"); robot.servo_joint(${idx}, ${dir * JOG_JOINT_VEL})`)
+        sendLua(`robot.servo_joint(${idx}, ${dir * JOG_JOINT_VEL})`)
       } else {
         const vx  = idx === 1 ? dir * JOG_LIN_VEL : 0
         const vy  = idx === 2 ? dir * JOG_LIN_VEL : 0
@@ -65,7 +80,7 @@ function handlePress(index, direction) {
         const rx  = idx === 4 ? dir * JOG_ROT_VEL : 0
         const ry  = idx === 5 ? dir * JOG_ROT_VEL : 0
         const rz  = idx === 6 ? dir * JOG_ROT_VEL : 0
-        sendLua(`robot.switch_servo_mode("twist"); robot.servo_cartesian(${vx}, ${vy}, ${vz}, ${rx}, ${ry}, ${rz})`)
+        sendLua(`robot.servo_cartesian(${vx}, ${vy}, ${vz}, ${rx}, ${ry}, ${rz})`)
       }
     }
     sendJogCmd()
@@ -101,6 +116,10 @@ function formatValue(val) {
   return Number(val).toFixed(2)
 }
 
+onMounted(() => {
+  sendLua('robot.switch_servo_mode("joint_jog")')
+})
+
 onBeforeUnmount(() => {
   if (jogTimer) {
     clearInterval(jogTimer)
@@ -133,12 +152,12 @@ onBeforeUnmount(() => {
         <!-- Control Bar -->
         <div class="control-bar">
           <div class="toggle-group">
-            <button :class="['toggle-btn', { active: mode === 'jog' }]" @click="mode = 'jog'">Jog</button>
-            <button :class="['toggle-btn', { active: mode === 'inch' }]" @click="mode = 'inch'">Inch</button>
+            <button :class="['toggle-btn', { active: mode === 'jog' }]" @click="setMode('jog')">Jog</button>
+            <button :class="['toggle-btn', { active: mode === 'inch' }]" @click="setMode('inch')">Inch</button>
           </div>
           <div class="toggle-group">
-            <button :class="['toggle-btn', { active: space === 'joint' }]" @click="space = 'joint'">Joint</button>
-            <button :class="['toggle-btn', { active: space === 'cartesian' }]" @click="space = 'cartesian'">Cartesian</button>
+            <button :class="['toggle-btn', { active: space === 'joint' }]" @click="setSpace('joint')">Joint</button>
+            <button :class="['toggle-btn', { active: space === 'cartesian' }]" @click="setSpace('cartesian')">Cartesian</button>
           </div>
           <div v-if="mode === 'inch'" class="distance-group">
             <span class="distance-label">Dist:</span>
