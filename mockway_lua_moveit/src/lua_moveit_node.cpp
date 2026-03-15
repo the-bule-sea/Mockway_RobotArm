@@ -262,29 +262,29 @@ void LuaMoveItNode::setup_lua_api()
 
   /**
    * robot.servo_joints(velocities)
-   *   velocities : table {v1,v2,v3,v4,v5,v6}，单位 rad/s
+   *   velocities : table {v1,v2,v3,v4,v5,v6}，单位 deg/s
    */
   R.set_function("servo_joints", [this](sol::table vels) {
     std::vector<double> v(6, 0.0);
     for (int i = 1; i <= 6; ++i)
-      if (vels[i].valid()) v[i - 1] = vels[i].get<double>();
+      if (vels[i].valid()) v[i - 1] = vels[i].get<double>() * (M_PI / 180.0);
     publish_joint_jog(v);
   });
 
   /**
    * robot.servo_joint(name_or_index, velocity)
    *   name_or_index : 关节名字符串 ("joint1"~"joint6") 或索引 1~6
-   *   velocity      : rad/s
+   *   velocity      : deg/s
    */
   R.set_function("servo_joint", [this](sol::object name_or_idx, double vel) {
     std::vector<double> v(6, 0.0);
     if (name_or_idx.is<int>()) {
       int idx = name_or_idx.as<int>();
-      if (idx >= 1 && idx <= 6) v[idx - 1] = vel;
+      if (idx >= 1 && idx <= 6) v[idx - 1] = vel * (M_PI / 180.0);
     } else if (name_or_idx.is<std::string>()) {
       auto nm = name_or_idx.as<std::string>();
       for (int i = 0; i < 6; ++i)
-        if (defaults::JOINT_NAMES[i] == nm) { v[i] = vel; break; }
+        if (defaults::JOINT_NAMES[i] == nm) { v[i] = vel * (M_PI / 180.0); break; }
     }
     publish_joint_jog(v);
   });
@@ -295,14 +295,16 @@ void LuaMoveItNode::setup_lua_api()
 
   /**
    * robot.servo_cartesian(vx, vy, vz, rx, ry, rz [, frame_id])
-   *   vx/vy/vz : 线速度 m/s，rx/ry/rz : 角速度 rad/s
+   *   vx/vy/vz : 线速度 mm/s，rx/ry/rz : 角速度 deg/s
    */
   R.set_function("servo_cartesian",
     [this](double vx, double vy, double vz,
            double rx, double ry, double rz,
            sol::optional<std::string> frame_opt)
     {
-      publish_twist(vx, vy, vz, rx, ry, rz, frame_opt.value_or(base_frame_));
+      publish_twist(vx/1000.0, vy/1000.0, vz/1000.0,
+                    rx*(M_PI/180.0), ry*(M_PI/180.0), rz*(M_PI/180.0),
+                    frame_opt.value_or(base_frame_));
     });
 
   /**
@@ -341,13 +343,13 @@ void LuaMoveItNode::setup_lua_api()
 
   /**
    * robot.move_to_joints(positions)
-   *   positions : table {j1,j2,j3,j4,j5,j6}，单位 rad，返回 bool
+   *   positions : table {j1,j2,j3,j4,j5,j6}，单位 deg，返回 bool
    */
   R.set_function("move_to_joints", [this](sol::table pos) -> bool {
     if (!init_move_group()) return false;
     std::vector<double> target(6, 0.0);
     for (int i = 1; i <= 6; ++i)
-      if (pos[i].valid()) target[i - 1] = pos[i].get<double>();
+      if (pos[i].valid()) target[i - 1] = pos[i].get<double>() * (M_PI / 180.0);
     std::lock_guard<std::mutex> lk(mg_mutex_);
     move_group_->setJointValueTarget(target);
     auto ret = move_group_->move();
@@ -366,7 +368,7 @@ void LuaMoveItNode::setup_lua_api()
     {
       if (!init_move_group()) return false;
       geometry_msgs::msg::Pose p;
-      p.position.x = x; p.position.y = y; p.position.z = z;
+      p.position.x = x/1000.0; p.position.y = y/1000.0; p.position.z = z/1000.0;
       p.orientation.x = qx; p.orientation.y = qy;
       p.orientation.z = qz; p.orientation.w = qw;
       std::lock_guard<std::mutex> lk(mg_mutex_);
@@ -379,7 +381,7 @@ void LuaMoveItNode::setup_lua_api()
 
   /**
    * robot.move_to_pose_rpy(x, y, z, roll, pitch, yaw)
-   *   末端执行器目标位姿（PTP，欧拉角，单位 rad），返回 bool
+   *   末端执行器目标位姿（PTP，欧拉角，单位 deg），x/y/z 单位 mm，返回 bool
    */
   R.set_function("move_to_pose_rpy",
     [this](double x, double y, double z,
@@ -387,11 +389,11 @@ void LuaMoveItNode::setup_lua_api()
     {
       if (!init_move_group()) return false;
       Eigen::Quaterniond q =
-        Eigen::AngleAxisd(yaw,   Eigen::Vector3d::UnitZ()) *
-        Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()) *
-        Eigen::AngleAxisd(roll,  Eigen::Vector3d::UnitX());
+        Eigen::AngleAxisd(yaw   * (M_PI/180.0), Eigen::Vector3d::UnitZ()) *
+        Eigen::AngleAxisd(pitch * (M_PI/180.0), Eigen::Vector3d::UnitY()) *
+        Eigen::AngleAxisd(roll  * (M_PI/180.0), Eigen::Vector3d::UnitX());
       geometry_msgs::msg::Pose p;
-      p.position.x = x; p.position.y = y; p.position.z = z;
+      p.position.x = x/1000.0; p.position.y = y/1000.0; p.position.z = z/1000.0;
       p.orientation = tf2::toMsg(q);
       std::lock_guard<std::mutex> lk(mg_mutex_);
       move_group_->setPoseTarget(p);
@@ -407,7 +409,7 @@ void LuaMoveItNode::setup_lua_api()
 
   /**
    * robot.move_linear(x, y, z, qx, qy, qz, qw [, step [, min_fraction]])
-   *   step         : 插值步长 (m)，默认 0.01
+   *   step         : 插值步长 (mm)，默认 10
    *   min_fraction : 最小完成比例，默认 0.9，返回 bool
    */
   R.set_function("move_linear",
@@ -417,11 +419,11 @@ void LuaMoveItNode::setup_lua_api()
            sol::optional<double> min_frac_opt) -> bool
     {
       if (!init_move_group()) return false;
-      double step     = step_opt.value_or(0.01);
+      double step     = step_opt.value_or(10.0) / 1000.0;
       double min_frac = min_frac_opt.value_or(0.9);
 
       geometry_msgs::msg::Pose target;
-      target.position.x = x; target.position.y = y; target.position.z = z;
+      target.position.x = x/1000.0; target.position.y = y/1000.0; target.position.z = z/1000.0;
       target.orientation.x = qx; target.orientation.y = qy;
       target.orientation.z = qz; target.orientation.w = qw;
 
@@ -449,7 +451,7 @@ void LuaMoveItNode::setup_lua_api()
 
   /**
    * robot.move_linear_rpy(x, y, z, roll, pitch, yaw [, step])
-   *   欧拉角版本的直线运动，单位 rad
+   *   欧拉角版本的直线运动，x/y/z 单位 mm，角度 deg，step 单位 mm 默认 10
    */
   R.set_function("move_linear_rpy",
     [this](double x, double y, double z,
@@ -458,17 +460,17 @@ void LuaMoveItNode::setup_lua_api()
     {
       if (!init_move_group()) return false;
       Eigen::Quaterniond q =
-        Eigen::AngleAxisd(yaw,   Eigen::Vector3d::UnitZ()) *
-        Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()) *
-        Eigen::AngleAxisd(roll,  Eigen::Vector3d::UnitX());
+        Eigen::AngleAxisd(yaw   * (M_PI/180.0), Eigen::Vector3d::UnitZ()) *
+        Eigen::AngleAxisd(pitch * (M_PI/180.0), Eigen::Vector3d::UnitY()) *
+        Eigen::AngleAxisd(roll  * (M_PI/180.0), Eigen::Vector3d::UnitX());
 
       geometry_msgs::msg::Pose target;
-      target.position.x = x; target.position.y = y; target.position.z = z;
+      target.position.x = x/1000.0; target.position.y = y/1000.0; target.position.z = z/1000.0;
       target.orientation = tf2::toMsg(q);
 
       std::vector<geometry_msgs::msg::Pose> waypoints = {target};
       moveit_msgs::msg::RobotTrajectory trajectory;
-      double step = step_opt.value_or(0.01);
+      double step = step_opt.value_or(10.0) / 1000.0;
 
       std::lock_guard<std::mutex> lk(mg_mutex_);
       double fraction = move_group_->computeCartesianPath(waypoints, step, trajectory);
@@ -485,7 +487,7 @@ void LuaMoveItNode::setup_lua_api()
 
   /**
    * robot.move_linear_relative(dx, dy, dz, drx, dry, drz [, step])
-   *   相对于当前末端位置的直线增量运动
+   *   相对于当前末端位置的直线增量运动，dx/dy/dz 单位 mm，drx/dry/drz 单位 deg，step 单位 mm 默认 10
    */
   R.set_function("move_linear_relative",
     [this](double dx, double dy, double dz,
@@ -493,7 +495,7 @@ void LuaMoveItNode::setup_lua_api()
            sol::optional<double> step_opt) -> bool
     {
       if (!init_move_group()) return false;
-      double step = step_opt.value_or(0.01);
+      double step = step_opt.value_or(10.0) / 1000.0;
 
       geometry_msgs::msg::PoseStamped cur;
       {
@@ -502,16 +504,16 @@ void LuaMoveItNode::setup_lua_api()
       }
 
       geometry_msgs::msg::Pose target = cur.pose;
-      target.position.x += dx;
-      target.position.y += dy;
-      target.position.z += dz;
+      target.position.x += dx/1000.0;
+      target.position.y += dy/1000.0;
+      target.position.z += dz/1000.0;
 
       Eigen::Quaterniond q_cur;
       tf2::fromMsg(cur.pose.orientation, q_cur);
       Eigen::Quaterniond q_delta =
-        Eigen::AngleAxisd(drz, Eigen::Vector3d::UnitZ()) *
-        Eigen::AngleAxisd(dry, Eigen::Vector3d::UnitY()) *
-        Eigen::AngleAxisd(drx, Eigen::Vector3d::UnitX());
+        Eigen::AngleAxisd(drz * (M_PI/180.0), Eigen::Vector3d::UnitZ()) *
+        Eigen::AngleAxisd(dry * (M_PI/180.0), Eigen::Vector3d::UnitY()) *
+        Eigen::AngleAxisd(drx * (M_PI/180.0), Eigen::Vector3d::UnitX());
       target.orientation = tf2::toMsg(q_delta * q_cur);
 
       std::vector<geometry_msgs::msg::Pose> waypoints = {target};
@@ -565,19 +567,19 @@ void LuaMoveItNode::setup_lua_api()
   // ══════════════════════════════════════════════════════════════════════════
 
   /**
-   * robot.get_joint_positions()  — 返回 table {j1..j6}，单位 rad
+   * robot.get_joint_positions()  — 返回 table {j1..j6}，单位 deg
    */
   R.set_function("get_joint_positions", [this]() -> sol::table {
     if (!init_move_group()) return lua_.create_table();
     std::lock_guard<std::mutex> lk(mg_mutex_);
     auto vals = move_group_->getCurrentJointValues();
     sol::table t = lua_.create_table();
-    for (size_t i = 0; i < vals.size(); ++i) t[i + 1] = vals[i];
+    for (size_t i = 0; i < vals.size(); ++i) t[i + 1] = vals[i] * (180.0 / M_PI);
     return t;
   });
 
   /**
-   * robot.get_current_pose()  — 返回 table {x, y, z, qx, qy, qz, qw}
+   * robot.get_current_pose()  — 返回 table {x, y, z, qx, qy, qz, qw}，x/y/z 单位 mm
    */
   R.set_function("get_current_pose", [this]() -> sol::table {
     if (!init_move_group()) return lua_.create_table();
@@ -585,14 +587,14 @@ void LuaMoveItNode::setup_lua_api()
     auto ps = move_group_->getCurrentPose();
     auto& p = ps.pose;
     sol::table t = lua_.create_table();
-    t["x"]  = p.position.x;    t["y"]  = p.position.y;    t["z"]  = p.position.z;
+    t["x"]  = p.position.x*1000.0; t["y"]  = p.position.y*1000.0; t["z"]  = p.position.z*1000.0;
     t["qx"] = p.orientation.x; t["qy"] = p.orientation.y;
     t["qz"] = p.orientation.z; t["qw"] = p.orientation.w;
     return t;
   });
 
   /**
-   * robot.get_current_rpy()  — 返回 table {roll, pitch, yaw}，单位 rad
+   * robot.get_current_rpy()  — 返回 table {roll, pitch, yaw}，单位 deg
    */
   R.set_function("get_current_rpy", [this]() -> sol::table {
     if (!init_move_group()) return lua_.create_table();
@@ -602,7 +604,9 @@ void LuaMoveItNode::setup_lua_api()
     tf2::fromMsg(ps.pose.orientation, q);
     auto euler = q.toRotationMatrix().eulerAngles(2, 1, 0); // ZYX -> yaw, pitch, roll
     sol::table t = lua_.create_table();
-    t["roll"] = euler[2]; t["pitch"] = euler[1]; t["yaw"] = euler[0];
+    t["roll"]  = euler[2] * (180.0 / M_PI);
+    t["pitch"] = euler[1] * (180.0 / M_PI);
+    t["yaw"]   = euler[0] * (180.0 / M_PI);
     return t;
   });
 
@@ -629,12 +633,11 @@ void LuaMoveItNode::setup_lua_api()
     function rad2deg(r) return r * 180.0 / math.pi end
 
     -- 简化全局 API（与 UI 脚本编辑器文档一致）
+    -- 所有单位：位置 mm，角度 deg
     function GetJoints()
       local j = robot.get_joint_positions()
       if not j then return nil end
-      local deg = {}
-      for i = 1, #j do deg[i] = rad2deg(j[i]) end
-      return deg
+      return j  -- 已为 deg
     end
 
     function GetPose()

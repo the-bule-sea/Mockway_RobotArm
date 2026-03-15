@@ -5,10 +5,12 @@
   ============================================================
   功能说明：
     - 回 home 位置
-    - 按关节角度做 PTP
-    - 按末端位姿做 PTP（四元数 & RPY 两种写法）
+    - 按关节角度做 PTP（单位 deg）
+    - 按末端位姿做 PTP（位置 mm，姿态 deg / 四元数）
     - 速度/加速度缩放演示
     - 多点连续 PTP
+
+  单位：位置 mm，角度 deg
 
   运行方式：
     ros2 run mockway_lua_moveit lua_moveit_node \
@@ -45,29 +47,21 @@ ok = robot.move_to_named("ready")
 if ok then api.print_joints() end
 
 -- ════════════════════════════════════════════════════════════
--- 3. 按关节角度做 PTP（度数输入，用 api 辅助转换）
+-- 3. 按关节角度做 PTP（直接填写度数）
 -- ════════════════════════════════════════════════════════════
 robot.log("-- 3. PTP 关节目标（度数）--")
 
--- 方式 A: 用 api.joints_deg() 转换
+-- 方式 A: 用 api.joints_deg() — 与直接传 table 等价
 local target_a = api.joints_deg(0, -45, -90, 60, 90, 0)
-robot.log(string.format("目标: joint2=%.0f° joint3=%.0f° joint4=%.0f° joint5=%.0f°",
-  -45, -90, 60, 90))
+robot.log("目标: joint2=-45°  joint3=-90°  joint4=60°  joint5=90°")
 ok = robot.move_to_joints(target_a)
 if ok then api.print_joints() end
 
 robot.sleep(0.5)
 
--- 方式 B: 直接用弧度
-local target_b = {
-  deg2rad(0),    -- joint1
-  deg2rad(-40),  -- joint2
-  deg2rad(-138), -- joint3
-  deg2rad(88),   -- joint4
-  deg2rad(91),   -- joint5
-  deg2rad(0),    -- joint6
-}
-robot.log("目标: ready 附近（弧度直接输入）")
+-- 方式 B: 直接传度数 table
+local target_b = {0, -40, -138, 88, 91, 0}
+robot.log("目标: ready 附近（度数直接输入）")
 ok = robot.move_to_joints(target_b)
 if ok then api.print_joints() end
 
@@ -77,14 +71,13 @@ if ok then api.print_joints() end
 robot.log("-- 4. PTP 位姿目标（四元数）--")
 api.print_pose()
 
--- 读取当前位置作为参考
+-- 读取当前位置作为参考（x/y/z 单位 mm）
 local cur = robot.get_current_pose()
 
--- 目标位姿：在当前位置基础上沿 Z 轴稍微抬高
--- 四元数保持当前姿态，仅改变位置
+-- 目标位姿：在当前位置基础上沿 Z 轴稍微抬高 50mm
 ok = robot.move_to_pose(
-  cur.x, cur.y, cur.z + 0.05,  -- 位置：当前位置抬高 5cm
-  cur.qx, cur.qy, cur.qz, cur.qw)  -- 姿态：保持不变
+  cur.x, cur.y, cur.z + 50,       -- 位置：当前位置抬高 50mm
+  cur.qx, cur.qy, cur.qz, cur.qw) -- 姿态：保持不变
 if ok then api.print_pose() end
 
 robot.sleep(0.5)
@@ -93,7 +86,7 @@ robot.sleep(0.5)
 -- 姿态为：末端竖直向下（qw=0, qx=1 表示绕X轴转180°）
 robot.log("目标位姿：绝对坐标（四元数）")
 ok = robot.move_to_pose(
-  0.3, 0.0, 0.35,   -- x, y, z (m)
+  300, 0, 350,          -- x, y, z (mm)
   1.0, 0.0, 0.0, 0.0)  -- qx, qy, qz, qw (末端朝下)
 if ok then api.print_pose() end
 
@@ -104,15 +97,15 @@ robot.log("-- 5. PTP 位姿目标（RPY 角度）--")
 
 -- roll=180°, pitch=0°, yaw=0° => 末端朝下
 ok = robot.move_to_pose_rpy(
-  0.25, 0.1, 0.3,                -- x, y, z (m)
-  deg2rad(180), deg2rad(0), deg2rad(0))  -- roll, pitch, yaw
+  250, 100, 300,  -- x, y, z (mm)
+  180, 0, 0)      -- roll, pitch, yaw (deg)
 if ok then api.print_pose() end
 
 robot.sleep(0.5)
 
 ok = robot.move_to_pose_rpy(
-  0.25, -0.1, 0.3,
-  deg2rad(180), deg2rad(0), deg2rad(30))  -- yaw 偏转 30°
+  250, -100, 300,
+  180, 0, 30)  -- yaw 偏转 30°
 if ok then api.print_pose() end
 
 -- ════════════════════════════════════════════════════════════

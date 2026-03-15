@@ -2,6 +2,18 @@
 
 使用 [sol2](https://github.com/ThePhD/sol2) 将 MoveIt 和 MoveIt Servo 封装为 Lua API，通过执行 Lua 脚本控制机械臂。
 
+## 单位约定
+
+> 所有 Lua API 输入/输出统一使用以下单位：
+>
+> | 量 | 单位 |
+> |---|---|
+> | 位置（x, y, z） | **mm**（毫米） |
+> | 角度（关节、RPY、旋转增量） | **deg**（度） |
+> | 线速度（Servo） | **mm/s** |
+> | 角速度（Servo） | **deg/s** |
+> | 插值步长（直线运动） | **mm**，默认 10 |
+
 ## 前置条件
 
 运行前需启动以下节点之一：
@@ -67,11 +79,11 @@ robot.switch_servo_mode("twist")
 | 参数 | 类型 | 说明 |
 |---|---|---|
 | `name_or_index` | string \| int | 关节名 `"joint1"`～`"joint6"` 或索引 `1`～`6` |
-| `velocity` | number | 目标速度，单位 rad/s |
+| `velocity` | number | 目标速度，单位 **deg/s** |
 
 ```lua
-robot.servo_joint(1, 0.3)         -- joint1 以 0.3 rad/s 点动
-robot.servo_joint("joint3", -0.5) -- joint3 反向点动
+robot.servo_joint(1, 20.0)          -- joint1 以 20 deg/s 点动
+robot.servo_joint("joint3", -15.0)  -- joint3 反向点动
 ```
 
 #### `robot.servo_joints(velocities)`
@@ -80,10 +92,10 @@ robot.servo_joint("joint3", -0.5) -- joint3 反向点动
 
 | 参数 | 类型 | 说明 |
 |---|---|---|
-| `velocities` | table | `{v1, v2, v3, v4, v5, v6}`，单位 rad/s |
+| `velocities` | table | `{v1, v2, v3, v4, v5, v6}`，单位 **deg/s** |
 
 ```lua
-robot.servo_joints({0.0, 0.0, 0.0, 0.3, 0.3, 0.0})
+robot.servo_joints({0.0, 0.0, 0.0, 20.0, 20.0, 0.0})
 ```
 
 #### `robot.servo_cartesian(vx, vy, vz, rx, ry, rz [, frame_id])`
@@ -92,13 +104,13 @@ robot.servo_joints({0.0, 0.0, 0.0, 0.3, 0.3, 0.0})
 
 | 参数 | 类型 | 说明 |
 |---|---|---|
-| `vx/vy/vz` | number | 线速度，单位 m/s |
-| `rx/ry/rz` | number | 角速度，单位 rad/s |
+| `vx/vy/vz` | number | 线速度，单位 **mm/s** |
+| `rx/ry/rz` | number | 角速度，单位 **deg/s** |
 | `frame_id` | string | 参考坐标系，默认 `base_link` |
 
 ```lua
-robot.servo_cartesian(0.1, 0, 0,  0, 0, 0)             -- 沿基坐标系 X 轴前进
-robot.servo_cartesian(0, 0, 0.1,  0, 0, 0, robot.ee_frame)  -- 沿末端 Z 轴移动
+robot.servo_cartesian(100, 0, 0,  0, 0, 0)              -- 沿基坐标系 X 轴前进 100mm/s
+robot.servo_cartesian(0, 0, 100,  0, 0, 0, robot.ee_frame)  -- 沿末端 Z 轴移动
 ```
 
 #### `robot.servo_stop()`
@@ -130,26 +142,26 @@ robot.move_to_named("ready")
 
 | 参数 | 类型 | 说明 |
 |---|---|---|
-| `positions` | table | `{j1, j2, j3, j4, j5, j6}`，单位 rad |
+| `positions` | table | `{j1, j2, j3, j4, j5, j6}`，单位 **deg** |
 
 ```lua
-robot.move_to_joints({0, -0.785, -1.571, 1.047, 1.571, 0})
+robot.move_to_joints({0, -45, -90, 60, 90, 0})
 ```
 
 #### `robot.move_to_pose(x, y, z, qx, qy, qz, qw)` → bool
 
-按末端位姿做 PTP 运动（四元数）。
+按末端位姿做 PTP 运动（四元数）。x/y/z 单位 **mm**。
 
 ```lua
-robot.move_to_pose(0.3, 0.0, 0.35,  1.0, 0.0, 0.0, 0.0)
+robot.move_to_pose(300, 0, 350,  1.0, 0.0, 0.0, 0.0)
 ```
 
 #### `robot.move_to_pose_rpy(x, y, z, roll, pitch, yaw)` → bool
 
-按末端位姿做 PTP 运动（RPY 欧拉角，单位 rad）。
+按末端位姿做 PTP 运动（RPY 欧拉角）。x/y/z 单位 **mm**，角度单位 **deg**。
 
 ```lua
-robot.move_to_pose_rpy(0.25, 0.1, 0.3,  deg2rad(180), 0, 0)
+robot.move_to_pose_rpy(250, 100, 300,  180, 0, 0)
 ```
 
 ---
@@ -161,25 +173,25 @@ robot.move_to_pose_rpy(0.25, 0.1, 0.3,  deg2rad(180), 0, 0)
 
 #### `robot.move_linear(x, y, z, qx, qy, qz, qw [, step [, min_fraction]])` → bool
 
-绝对位姿直线运动（四元数）。
+绝对位姿直线运动（四元数）。x/y/z 单位 **mm**。
 
 | 参数 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
-| `step` | number | `0.01` | 插值步长，单位 m |
+| `step` | number | `10` | 插值步长，单位 **mm** |
 | `min_fraction` | number | `0.9` | 最小规划完成比例 |
 
 ```lua
-robot.move_linear(0.3, 0.0, 0.4,  1.0, 0.0, 0.0, 0.0)
-robot.move_linear(0.3, 0.0, 0.4,  1.0, 0.0, 0.0, 0.0,  0.005)       -- 精细步长
-robot.move_linear(0.3, 0.0, 0.4,  1.0, 0.0, 0.0, 0.0,  0.01, 0.95)  -- 要求 95% 完成
+robot.move_linear(300, 0, 400,  1.0, 0.0, 0.0, 0.0)
+robot.move_linear(300, 0, 400,  1.0, 0.0, 0.0, 0.0,  5)        -- 精细步长 5mm
+robot.move_linear(300, 0, 400,  1.0, 0.0, 0.0, 0.0,  10, 0.95) -- 要求 95% 完成
 ```
 
 #### `robot.move_linear_rpy(x, y, z, roll, pitch, yaw [, step])` → bool
 
-绝对位姿直线运动（RPY 欧拉角）。
+绝对位姿直线运动（RPY 欧拉角）。x/y/z 单位 **mm**，角度 **deg**，step 单位 **mm**。
 
 ```lua
-robot.move_linear_rpy(0.3, 0.0, 0.4,  deg2rad(180), 0, 0)
+robot.move_linear_rpy(300, 0, 400,  180, 0, 0)
 ```
 
 #### `robot.move_linear_relative(dx, dy, dz, drx, dry, drz [, step])` → bool
@@ -188,12 +200,13 @@ robot.move_linear_rpy(0.3, 0.0, 0.4,  deg2rad(180), 0, 0)
 
 | 参数 | 类型 | 说明 |
 |---|---|---|
-| `dx/dy/dz` | number | 位置偏移，单位 m |
-| `drx/dry/drz` | number | 姿态偏移（RPY 增量），单位 rad |
+| `dx/dy/dz` | number | 位置偏移，单位 **mm** |
+| `drx/dry/drz` | number | 姿态偏移（RPY 增量），单位 **deg** |
+| `step` | number | 插值步长，单位 **mm**，默认 10 |
 
 ```lua
-robot.move_linear_relative(0.0,  0.0, 0.05,  0.0, 0.0, 0.0)       -- 沿 Z 轴上升 5cm
-robot.move_linear_relative(0.03, 0.0, 0.0,   0.0, 0.0, deg2rad(10)) -- X 前移 + Z 轴转 10°
+robot.move_linear_relative(0.0,  0.0, 50.0,  0.0, 0.0, 0.0)       -- 沿 Z 轴上升 50mm
+robot.move_linear_relative(30.0, 0.0, 0.0,   0.0, 0.0, 10.0)       -- X 前移 30mm + Z 轴转 10°
 ```
 
 ---
@@ -243,31 +256,31 @@ robot.set_planner("LIN")   -- Pilz 直线规划器
 
 #### `robot.get_joint_positions()` → table
 
-返回当前关节角度。
+返回当前关节角度，单位 **deg**。
 
 ```lua
 local j = robot.get_joint_positions()
--- j[1]~j[6]，单位 rad
-print(rad2deg(j[1]))
+-- j[1]~j[6]，单位 deg
+print(j[1])
 ```
 
 #### `robot.get_current_pose()` → table
 
-返回当前末端位姿（四元数）。
+返回当前末端位姿（四元数）。x/y/z 单位 **mm**。
 
 ```lua
 local p = robot.get_current_pose()
--- p.x, p.y, p.z        位置，单位 m
+-- p.x, p.y, p.z        位置，单位 mm
 -- p.qx, p.qy, p.qz, p.qw  姿态四元数
 ```
 
 #### `robot.get_current_rpy()` → table
 
-返回当前末端姿态（RPY 欧拉角）。
+返回当前末端姿态（RPY 欧拉角），单位 **deg**。
 
 ```lua
 local r = robot.get_current_rpy()
--- r.roll, r.pitch, r.yaw，单位 rad
+-- r.roll, r.pitch, r.yaw，单位 deg
 ```
 
 ---
@@ -298,14 +311,14 @@ robot.log_error("规划失败")
 
 ```lua
 while robot.ok() do
-  robot.servo_joint(1, 0.3)
+  robot.servo_joint(1, 20.0)
   robot.sleep(0.02)
 end
 ```
 
 #### `deg2rad(deg)` / `rad2deg(rad)`
 
-角度与弧度互转（全局函数）。
+角度与弧度互转（全局函数，备用）。
 
 ```lua
 deg2rad(90)   -- → 1.5708
@@ -333,42 +346,44 @@ rad2deg(1.57) -- → 89.95
 
 #### `api.print_pose()`
 
-打印当前末端位置和 RPY 姿态。
+打印当前末端位置（mm）和 RPY 姿态（deg）。
 
 #### `api.jog_joint(idx, velocity, duration)`
 
-关节点动指定时长后自动停止。
+关节点动指定时长后自动停止。velocity 单位 **deg/s**。
 
 ```lua
-api.jog_joint(3, 0.3, 1.5)   -- joint3 以 0.3 rad/s 点动 1.5 秒
+api.jog_joint(3, 20.0, 1.5)   -- joint3 以 20 deg/s 点动 1.5 秒
 ```
 
 #### `api.jog_cartesian(vx, vy, vz, rx, ry, rz, duration [, frame])`
 
-笛卡尔点动指定时长后自动停止。
+笛卡尔点动指定时长后自动停止。线速度单位 **mm/s**，角速度 **deg/s**。
 
 ```lua
-api.jog_cartesian(0.1, 0, 0,  0, 0, 0,  1.5)               -- 沿 X 轴移动 1.5 秒
-api.jog_cartesian(0, 0, 0.1,  0, 0, 0,  1.0, robot.ee_frame) -- 末端坐标系
+api.jog_cartesian(100, 0, 0,  0, 0, 0,  1.5)                   -- 沿 X 轴移动 1.5 秒
+api.jog_cartesian(0, 0, 100,  0, 0, 0,  1.0, robot.ee_frame)    -- 末端坐标系
 ```
 
 #### `api.joints_deg(a1, a2, a3, a4, a5, a6)` → table
 
-度数输入，返回弧度关节目标表，用于 `robot.move_to_joints()`。
+度数输入，返回关节目标表，用于 `robot.move_to_joints()`。
 
 ```lua
 robot.move_to_joints(api.joints_deg(0, -45, -90, 60, 90, 0))
+-- 与以下写法等价：
+robot.move_to_joints({0, -45, -90, 60, 90, 0})
 ```
 
 #### `api.move_linear_waypoints(waypoints)` → bool
 
-多航点直线折线运动，逐段执行 `robot.move_linear()`。
+多航点直线折线运动，逐段执行 `robot.move_linear()`。x/y/z 单位 **mm**。
 
 ```lua
 local path = {
-  {0.3, 0.0, 0.4,  1.0, 0.0, 0.0, 0.0},
-  {0.3, 0.1, 0.4,  1.0, 0.0, 0.0, 0.0},
-  {0.3, 0.1, 0.35, 1.0, 0.0, 0.0, 0.0},
+  {300, 0.0, 400,  1.0, 0.0, 0.0, 0.0},
+  {300, 100, 400,  1.0, 0.0, 0.0, 0.0},
+  {300, 100, 350,  1.0, 0.0, 0.0, 0.0},
 }
 api.move_linear_waypoints(path)
 ```
@@ -379,10 +394,10 @@ api.move_linear_waypoints(path)
 
 | 脚本 | 功能 | 所需节点 |
 |---|---|---|
-| `demo_joint_servo.lua` | 逐轴 / 多轴关节点动演示 | servo_node |
-| `demo_cartesian_servo.lua` | 笛卡尔平移 / 旋转 / 组合点动演示 | servo_node |
-| `demo_ptp.lua` | PTP 命名状态 / 关节角 / 位姿目标 / 速度缩放 | move_group |
-| `demo_linear.lua` | 绝对 / 相对 / 多航点直线运动 / 矩形轨迹 | move_group |
+| `demo_joint_servo.lua` | 逐轴 / 多轴关节点动演示（deg/s） | servo_node |
+| `demo_cartesian_servo.lua` | 笛卡尔平移（mm/s）/ 旋转（deg/s）/ 组合点动 | servo_node |
+| `demo_ptp.lua` | PTP 命名状态 / 关节角（deg）/ 位姿目标（mm）/ 速度缩放 | move_group |
+| `demo_linear.lua` | 绝对 / 相对 / 多航点直线运动（mm）/ 矩形轨迹 | move_group |
 
 ---
 
@@ -399,8 +414,8 @@ robot.set_acceleration_scaling(0.1)
 -- 回 home
 assert(robot.move_to_named("home"), "回 home 失败")
 
--- 直线上升 5cm
-robot.move_linear_relative(0, 0, 0.05,  0, 0, 0)
+-- 直线上升 50mm
+robot.move_linear_relative(0, 0, 50,  0, 0, 0)
 
 -- 打印状态
 api.print_pose()

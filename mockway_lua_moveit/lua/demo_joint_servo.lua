@@ -8,6 +8,8 @@
     - 依次对每个关节执行正向/反向点动
     - 展示单轴、多轴同时点动两种方式
 
+  单位：速度 deg/s
+
   运行方式：
     ros2 run mockway_lua_moveit lua_moveit_node \
       /path/to/demo_joint_servo.lua
@@ -28,7 +30,7 @@ if not ok then
 end
 
 -- ── 参数 ─────────────────────────────────────────────────────────────────────
-local JOINT_VEL  = 0.3   -- 点动速度 rad/s
+local JOINT_VEL  = 20.0  -- 点动速度 deg/s
 local JOG_TIME   = 1.0   -- 每次点动持续时间 s
 local STOP_PAUSE = 0.5   -- 停止后等待时间 s
 local dt         = 0.02  -- 控制周期 s
@@ -36,9 +38,9 @@ local dt         = 0.02  -- 控制周期 s
 -- ── 辅助：单轴定时点动 ───────────────────────────────────────────────────────
 local function jog_single(idx, vel, duration)
   if type(idx) == "number" then
-    robot.log(string.format("  >> joint%d 以 %.2f rad/s 点动 %.1fs", idx, vel, duration))
+    robot.log(string.format("  >> joint%d 以 %.1f deg/s 点动 %.1fs", idx, vel, duration))
   else
-    robot.log(string.format("  >> %s 以 %.2f rad/s 点动 %.1fs", idx, vel, duration))
+    robot.log(string.format("  >> %s 以 %.1f deg/s 点动 %.1fs", idx, vel, duration))
   end
   local t = 0.0
   while t < duration and robot.ok() do
@@ -53,7 +55,7 @@ end
 -- ── 辅助：多轴同时点动 ───────────────────────────────────────────────────────
 local function jog_multi(vels, duration)
   robot.log(string.format(
-    "  >> 多轴点动 [%.2f %.2f %.2f %.2f %.2f %.2f] 持续 %.1fs",
+    "  >> 多轴点动 [%.1f %.1f %.1f %.1f %.1f %.1f] deg/s 持续 %.1fs",
     vels[1], vels[2], vels[3], vels[4], vels[5], vels[6], duration))
   local t = 0.0
   while t < duration and robot.ok() do

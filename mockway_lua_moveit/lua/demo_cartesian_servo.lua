@@ -9,6 +9,8 @@
     - 末端绕 X/Y/Z 轴旋转（Roll / Pitch / Yaw）
     - 在末端坐标系 (link6) 和基坐标系 (base_link) 之间切换演示
 
+  单位：线速度 mm/s，角速度 deg/s
+
   运行方式：
     ros2 run mockway_lua_moveit lua_moveit_node \
       /path/to/demo_cartesian_servo.lua
@@ -25,8 +27,8 @@ if not ok then
 end
 
 -- ── 参数 ─────────────────────────────────────────────────────────────────────
-local LIN_VEL   = 0.1    -- 线速度 m/s
-local ROT_VEL   = 0.3    -- 角速度 rad/s
+local LIN_VEL   = 100.0  -- 线速度 mm/s
+local ROT_VEL   = 20.0   -- 角速度 deg/s
 local MOV_TIME  = 1.5    -- 每段运动时间 s
 local PAUSE     = 0.5    -- 停止后等待 s
 local dt        = 0.02   -- 控制周期 s
@@ -37,7 +39,7 @@ local EE        = robot.ee_frame     -- "link6"
 local function jog_cart(vx, vy, vz, rx, ry, rz, duration, frame)
   frame = frame or BASE
   robot.log(string.format(
-    "  >> 笛卡尔点动 [lin=%.2f,%.2f,%.2f rot=%.2f,%.2f,%.2f] %.1fs [%s]",
+    "  >> 笛卡尔点动 [lin=%.1f,%.1f,%.1f mm/s  rot=%.1f,%.1f,%.1f deg/s] %.1fs [%s]",
     vx, vy, vz, rx, ry, rz, duration, frame))
   local t = 0.0
   while t < duration and robot.ok() do
@@ -100,8 +102,8 @@ jog_cart(0, 0, -LIN_VEL, 0, 0, 0, MOV_TIME, EE)
 -- ════════════════════════════════════════════════════════════
 robot.log("-- 4. 组合笛卡尔运动 --")
 local VD = LIN_VEL / math.sqrt(2)
-jog_cart(VD, VD, 0.05,  0, 0, ROT_VEL * 0.5, MOV_TIME, BASE)
-jog_cart(-VD, -VD, -0.05, 0, 0, -ROT_VEL * 0.5, MOV_TIME, BASE)
+jog_cart(VD, VD, 50.0,  0, 0, ROT_VEL * 0.5, MOV_TIME, BASE)
+jog_cart(-VD, -VD, -50.0, 0, 0, -ROT_VEL * 0.5, MOV_TIME, BASE)
 
 api.print_pose()
 robot.log("=== 笛卡尔手动点动演示结束 ===")

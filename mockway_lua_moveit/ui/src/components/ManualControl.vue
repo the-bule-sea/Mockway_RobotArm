@@ -14,9 +14,9 @@ const lastError = ref('')
 
 const inchPresets = [0.1, 0.5, 1, 5, 10]
 
-const JOG_JOINT_VEL = 0.3   // rad/s
-const JOG_LIN_VEL   = 0.05  // m/s
-const JOG_ROT_VEL   = 0.3   // rad/s
+const JOG_JOINT_VEL = 20    // deg/s
+const JOG_LIN_VEL   = 50    // mm/s
+const JOG_ROT_VEL   = 20    // deg/s
 
 let jogTimer = null
 
@@ -88,14 +88,14 @@ function handlePress(index, direction) {
   } else {
     const dist = inchDistance.value
     if (space.value === 'joint') {
-      sendLua(`local j = robot.get_joint_positions(); j[${idx}] = j[${idx}] + deg2rad(${dir * dist}); robot.move_to_joints(j)`)
+      sendLua(`local j = robot.get_joint_positions(); j[${idx}] = j[${idx}] + ${dir * dist}; robot.move_to_joints(j)`)
     } else {
-      const dx  = idx === 1 ? dir * dist / 1000 : 0
-      const dy  = idx === 2 ? dir * dist / 1000 : 0
-      const dz  = idx === 3 ? dir * dist / 1000 : 0
-      const drx = idx === 4 ? `deg2rad(${dir * dist})` : 0
-      const dry = idx === 5 ? `deg2rad(${dir * dist})` : 0
-      const drz = idx === 6 ? `deg2rad(${dir * dist})` : 0
+      const dx  = idx === 1 ? dir * dist : 0
+      const dy  = idx === 2 ? dir * dist : 0
+      const dz  = idx === 3 ? dir * dist : 0
+      const drx = idx === 4 ? dir * dist : 0
+      const dry = idx === 5 ? dir * dist : 0
+      const drz = idx === 6 ? dir * dist : 0
       sendLua(`robot.move_linear_relative(${dx}, ${dy}, ${dz}, ${drx}, ${dry}, ${drz})`)
     }
   }
