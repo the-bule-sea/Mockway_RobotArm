@@ -19,7 +19,13 @@
     - servo_node 已启动（mockway_moveit_servo 的 servo.launch.py）
 --]]
 
-local api = require("robot_api")
+-- ── 局部辅助 ─────────────────────────────────────────────────────────────────
+local function print_joints()
+  local j = GetJoints()
+  Log(string.format(
+    "关节位置 [deg]: %.1f  %.1f  %.1f  %.1f  %.1f  %.1f",
+    j[1], j[2], j[3], j[4], j[5], j[6]))
+end
 
 Log("=== 关节手动点动演示开始 ===")
 
@@ -35,7 +41,7 @@ local JOG_TIME   = 1.0   -- 每次点动持续时间 s
 local STOP_PAUSE = 500   -- 停止后等待 ms
 local dt         = 0.02  -- 控制周期 s
 
--- ── 辅助：单轴定时点动 ───────────────────────────────────────────────────────
+-- ── 单轴定时点动 ─────────────────────────────────────────────────────────────
 local function jog_single(idx, vel, duration)
   if type(idx) == "number" then
     Log(string.format("  >> joint%d 以 %.1f deg/s 点动 %.1fs", idx, vel, duration))
@@ -52,7 +58,7 @@ local function jog_single(idx, vel, duration)
   Sleep(STOP_PAUSE)
 end
 
--- ── 辅助：多轴同时点动 ───────────────────────────────────────────────────────
+-- ── 多轴同时点动 ─────────────────────────────────────────────────────────────
 local function jog_multi(vels, duration)
   Log(string.format(
     "  >> 多轴点动 [%.1f %.1f %.1f %.1f %.1f %.1f] deg/s 持续 %.1fs",
@@ -97,8 +103,6 @@ Log("-- 4. 多轴协同点动 (joint4+joint5) --")
 jog_multi({0.0, 0.0, 0.0,  JOINT_VEL,  JOINT_VEL, 0.0}, JOG_TIME)
 jog_multi({0.0, 0.0, 0.0, -JOINT_VEL, -JOINT_VEL, 0.0}, JOG_TIME)
 
--- ── 打印最终关节状态 ─────────────────────────────────────────────────────────
 Sleep(500)
-api.print_joints()
-
+print_joints()
 Log("=== 关节手动点动演示结束 ===")

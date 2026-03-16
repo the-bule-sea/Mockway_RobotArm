@@ -16,11 +16,16 @@
       /path/to/demo_cartesian_servo.lua
 --]]
 
-local api = require("robot_api")
+-- ── 局部辅助 ─────────────────────────────────────────────────────────────────
+local function print_pose()
+  local p = GetPose()
+  Log(string.format(
+    "末端位置: x=%.2f mm  y=%.2f mm  z=%.2f mm  |  RPY: %.1f°  %.1f°  %.1f°",
+    p[1], p[2], p[3], p[4], p[5], p[6]))
+end
 
 Log("=== 笛卡尔手动点动演示开始 ===")
 
--- 切换到 Twist 模式
 local ok = ServoMode("twist")
 if not ok then
   LogWarn("Servo 服务未响应，继续发布（离线调试模式）")
@@ -32,10 +37,10 @@ local ROT_VEL  = 20.0        -- 角速度 deg/s
 local MOV_TIME = 1.5         -- 每段运动时间 s
 local PAUSE    = 500         -- 停止后等待 ms
 local dt       = 0.02        -- 控制周期 s
-local BASE     = "base_link" -- 基坐标系
-local EE       = "link6"     -- 末端工具坐标系
+local BASE     = "base_link"
+local EE       = "link6"
 
--- ── 辅助：沿某方向点动指定时长后停止 ────────────────────────────────────────
+-- ── 定时笛卡尔点动 ───────────────────────────────────────────────────────────
 local function jog_cart(vx, vy, vz, rx, ry, rz, duration, frame)
   frame = frame or BASE
   Log(string.format(
@@ -55,46 +60,35 @@ end
 -- 1. 沿基坐标系三轴平移
 -- ════════════════════════════════════════════════════════════
 Log("-- 1. 基坐标系平移 --")
-api.print_pose()
+print_pose()
 
--- +X 前进
-jog_cart( LIN_VEL, 0, 0,  0, 0, 0, MOV_TIME, BASE)
--- -X 后退
-jog_cart(-LIN_VEL, 0, 0,  0, 0, 0, MOV_TIME, BASE)
--- +Y 左移
-jog_cart(0,  LIN_VEL, 0,  0, 0, 0, MOV_TIME, BASE)
--- -Y 右移
-jog_cart(0, -LIN_VEL, 0,  0, 0, 0, MOV_TIME, BASE)
--- +Z 上升
-jog_cart(0, 0,  LIN_VEL,  0, 0, 0, MOV_TIME, BASE)
--- -Z 下降
-jog_cart(0, 0, -LIN_VEL,  0, 0, 0, MOV_TIME, BASE)
+jog_cart( LIN_VEL, 0, 0,  0, 0, 0, MOV_TIME, BASE)  -- +X 前进
+jog_cart(-LIN_VEL, 0, 0,  0, 0, 0, MOV_TIME, BASE)  -- -X 后退
+jog_cart(0,  LIN_VEL, 0,  0, 0, 0, MOV_TIME, BASE)  -- +Y 左移
+jog_cart(0, -LIN_VEL, 0,  0, 0, 0, MOV_TIME, BASE)  -- -Y 右移
+jog_cart(0, 0,  LIN_VEL,  0, 0, 0, MOV_TIME, BASE)  -- +Z 上升
+jog_cart(0, 0, -LIN_VEL,  0, 0, 0, MOV_TIME, BASE)  -- -Z 下降
 
 -- ════════════════════════════════════════════════════════════
 -- 2. 绕基坐标系三轴旋转
 -- ════════════════════════════════════════════════════════════
 Log("-- 2. 基坐标系旋转 --")
 
--- Roll+ (绕 X 轴)
-jog_cart(0, 0, 0,  ROT_VEL, 0, 0, MOV_TIME, BASE)
-jog_cart(0, 0, 0, -ROT_VEL, 0, 0, MOV_TIME, BASE)
--- Pitch+ (绕 Y 轴)
-jog_cart(0, 0, 0, 0,  ROT_VEL, 0, MOV_TIME, BASE)
-jog_cart(0, 0, 0, 0, -ROT_VEL, 0, MOV_TIME, BASE)
--- Yaw+ (绕 Z 轴)
-jog_cart(0, 0, 0, 0, 0,  ROT_VEL, MOV_TIME, BASE)
-jog_cart(0, 0, 0, 0, 0, -ROT_VEL, MOV_TIME, BASE)
+jog_cart(0, 0, 0,  ROT_VEL, 0, 0, MOV_TIME, BASE)   -- Roll+
+jog_cart(0, 0, 0, -ROT_VEL, 0, 0, MOV_TIME, BASE)   -- Roll-
+jog_cart(0, 0, 0, 0,  ROT_VEL, 0, MOV_TIME, BASE)   -- Pitch+
+jog_cart(0, 0, 0, 0, -ROT_VEL, 0, MOV_TIME, BASE)   -- Pitch-
+jog_cart(0, 0, 0, 0, 0,  ROT_VEL, MOV_TIME, BASE)   -- Yaw+
+jog_cart(0, 0, 0, 0, 0, -ROT_VEL, MOV_TIME, BASE)   -- Yaw-
 
 -- ════════════════════════════════════════════════════════════
 -- 3. 在末端坐标系 (link6) 中运动
 -- ════════════════════════════════════════════════════════════
 Log("-- 3. 末端坐标系平移 --")
 
--- 沿末端 X 轴前进（相对于工具头）
-jog_cart( LIN_VEL, 0, 0,  0, 0, 0, MOV_TIME, EE)
+jog_cart( LIN_VEL, 0, 0,  0, 0, 0, MOV_TIME, EE)   -- 沿末端 X 轴
 jog_cart(-LIN_VEL, 0, 0,  0, 0, 0, MOV_TIME, EE)
--- 沿末端 Z 轴（工具进给方向）
-jog_cart(0, 0,  LIN_VEL,  0, 0, 0, MOV_TIME, EE)
+jog_cart(0, 0,  LIN_VEL,  0, 0, 0, MOV_TIME, EE)   -- 沿末端 Z 轴（工具进给）
 jog_cart(0, 0, -LIN_VEL,  0, 0, 0, MOV_TIME, EE)
 
 -- ════════════════════════════════════════════════════════════
@@ -105,5 +99,5 @@ local VD = LIN_VEL / math.sqrt(2)
 jog_cart( VD,  VD,  50.0,  0, 0,  ROT_VEL * 0.5, MOV_TIME, BASE)
 jog_cart(-VD, -VD, -50.0,  0, 0, -ROT_VEL * 0.5, MOV_TIME, BASE)
 
-api.print_pose()
+print_pose()
 Log("=== 笛卡尔手动点动演示结束 ===")
