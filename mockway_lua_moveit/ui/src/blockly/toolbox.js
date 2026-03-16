@@ -85,7 +85,8 @@ export function createToolbox(joints, pose) {
           { kind: 'block', type: 'robot_move_to_pose_rpy', inputs: poseShadows(pose) },
           { kind: 'label', text: 'Linear' },
           { kind: 'block', type: 'robot_move_linear_rpy', inputs: poseShadows(pose) },
-          { kind: 'block', type: 'robot_move_linear_relative', inputs: { ...ZERO_REL } }
+          { kind: 'block', type: 'robot_move_linear_relative', inputs: { ...ZERO_REL } },
+          { kind: 'block', type: 'robot_move_linear_relative_tool', inputs: { ...ZERO_REL } }
         ]
       },
 

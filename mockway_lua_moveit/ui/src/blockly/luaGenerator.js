@@ -113,6 +113,11 @@ luaGenerator.forBlock['robot_move_linear_relative'] = function (block) {
   return `robot.move_linear_relative(${vals.join(', ')})\n`
 }
 
+luaGenerator.forBlock['robot_move_linear_relative_tool'] = function (block) {
+  const vals = ['DX','DY','DZ','DRX','DRY','DRZ'].map(l => valueToCode(block, l, Order.NONE))
+  return `robot.move_linear_relative_tool(${vals.join(', ')})\n`
+}
+
 // ======================== Parameter Blocks ========================
 
 luaGenerator.forBlock['robot_set_velocity_scaling'] = function (block) {

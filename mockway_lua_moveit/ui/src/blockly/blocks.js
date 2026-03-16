@@ -147,7 +147,21 @@ Blockly.Blocks['robot_move_linear_relative'] = {
     this.setPreviousStatement(true, null)
     this.setNextStatement(true, null)
     this.setColour(MOTION_HUE)
-    this.setTooltip('Relative linear motion from current pose: dX/dY/dZ (m), dRx/dRy/dRz (rad, blocking)')
+    this.setTooltip('Relative linear motion in base frame: dX/dY/dZ (mm), dRx/dRy/dRz (deg, blocking)')
+  }
+}
+
+Blockly.Blocks['robot_move_linear_relative_tool'] = {
+  init() {
+    this.appendValueInput('DX').setCheck('Number').appendField('MoveLinearRelTool  dX')
+    ;['DY','DZ','DRX','DRY','DRZ'].forEach(l => {
+      this.appendValueInput(l).setCheck('Number').appendField(l)
+    })
+    this.setInputsInline(true)
+    this.setPreviousStatement(true, null)
+    this.setNextStatement(true, null)
+    this.setColour(MOTION_HUE)
+    this.setTooltip('Relative linear motion in tool frame: dX/dY/dZ (mm), dRx/dRy/dRz (deg, blocking). Delta is expressed in the end-effector coordinate system.')
   }
 }
 

@@ -487,7 +487,8 @@ void LuaMoveItNode::setup_lua_api()
 
   /**
    * robot.move_linear_relative(dx, dy, dz, drx, dry, drz [, step])
-   *   相对于当前末端位置的直线增量运动，dx/dy/dz 单位 mm，drx/dry/drz 单位 deg，step 单位 mm 默认 10
+   *   相对于当前末端位置的直线增量运动（增量在基坐标系下表达）
+   *   dx/dy/dz 单位 mm，drx/dry/drz 单位 deg，step 单位 mm 默认 10
    */
   R.set_function("move_linear_relative",
     [this](double dx, double dy, double dz,
@@ -529,6 +530,65 @@ void LuaMoveItNode::setup_lua_api()
       plan.trajectory = trajectory;
       auto ret = move_group_->execute(plan);
       return (ret == moveit::core::MoveItErrorCode::SUCCESS);
+    });
+
+  /**
+   * robot.move_linear_relative_tool(dx, dy, dz, drx, dry, drz [, step])
+   *   相对于当前末端工具坐标系的直线增量运动（增量在工具坐标系下表达）
+   *   dx/dy/dz 单位 mm，drx/dry/drz 单位 deg，step 单位 mm 默认 10
+   *   与 move_linear_relative 的区别：
+   *     - 平移量先由工具姿态旋转至基坐标系再叠加
+   *     - 旋转量在工具坐标系下施加（q_new = q_cur * q_delta）
+   */
+  R.set_function("move_linear_relative_tool",
+    [this](double dx, double dy, double dz,
+           double drx, double dry, double drz,
+           sol::optional<double> step_opt) -> bool
+    {
+      if (!init_move_group()) return false;
+      double step = step_opt.value_or(10.0) / 1000.0;
+
+      geometry_msgs::msg::PoseStamped cur;
+      {
+        std::lock_guard<std::mutex> lk(mg_mutex_);
+        cur = move_group_->getCurrentPose();
+      }
+
+      Eigen::Quaterniond q_cur;
+      tf2::fromMsg(cur.pose.orientation, q_cur);
+
+      // 将平移量从工具坐标系旋转到基坐标系
+      Eigen::Vector3d delta_tool(dx / 1000.0, dy / 1000.0, dz / 1000.0);
+      Eigen::Vector3d delta_base = q_cur * delta_tool;
+
+      geometry_msgs::msg::Pose target = cur.pose;
+      target.position.x += delta_base.x();
+      target.position.y += delta_base.y();
+      target.position.z += delta_base.z();
+
+      // 在工具坐标系下施加旋转：q_new = q_cur * q_delta
+      Eigen::Quaterniond q_delta =
+        Eigen::AngleAxisd(drz * (M_PI / 180.0), Eigen::Vector3d::UnitZ()) *
+        Eigen::AngleAxisd(dry * (M_PI / 180.0), Eigen::Vector3d::UnitY()) *
+        Eigen::AngleAxisd(drx * (M_PI / 180.0), Eigen::Vector3d::UnitX());
+      target.orientation = tf2::toMsg(q_cur * q_delta);
+
+      std::vector<geometry_msgs::msg::Pose> waypoints = {target};
+      moveit_msgs::msg::RobotTrajectory trajectory;
+
+      std::lock_guard<std::mutex> lk(mg_mutex_);
+      double fraction = move_group_->computeCartesianPath(waypoints, step, trajectory);
+      if (fraction < 0.9) {
+        RCLCPP_WARN(get_logger(),
+          "工具坐标系相对直线规划完成率过低: %.1f%%", fraction * 100.0);
+        return false;
+      }
+      moveit::planning_interface::MoveGroupInterface::Plan plan;
+      plan.trajectory = trajectory;
+      auto ret = move_group_->execute(plan);
+      bool ok = (ret == moveit::core::MoveItErrorCode::SUCCESS);
+      RCLCPP_INFO(get_logger(), "move_linear_relative_tool -> %s", ok ? "成功" : "失败");
+      return ok;
     });
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -660,6 +720,13 @@ void LuaMoveItNode::setup_lua_api()
 
     function Sleep(ms)
       robot.sleep(ms / 1000.0)
+    end
+
+    function LinRelTool(delta)
+      return robot.move_linear_relative_tool(
+        delta[1], delta[2], delta[3],
+        delta[4], delta[5], delta[6]
+      ) and 0 or -1
     end
   )");
 }
