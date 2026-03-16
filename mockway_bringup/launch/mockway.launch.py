@@ -5,13 +5,15 @@ Mockway 机械臂完整启动：MoveIt（move_group）+ MoveIt Servo + RViz。
 
   - move_group、robot_state_publisher、ros2_control、controllers（来自 demo.launch.py）
   - servo_node（独立节点）
+  - lua_moveit_node（HTTP Lua 脚本执行节点，可关闭）
   - RViz（使用 servo 专用配置）
 
 启动方式：
   ros2 launch mockway_bringup mockway.launch.py
 
 可选参数：
-  with_rviz (bool, default true)  — 是否显示 RViz
+  with_rviz  (bool, default true)   — 是否显示 RViz
+  with_lua   (bool, default true)   — 是否启动 lua_moveit_node
 """
 
 import os
@@ -41,6 +43,9 @@ def generate_launch_description():
     # （IncludeLaunchDescription 的 launch_arguments 会全局覆盖同名 LaunchConfiguration）
     use_rviz_arg = DeclareLaunchArgument(
         "with_rviz", default_value="true", description="是否启动 RViz"
+    )
+    use_lua_arg = DeclareLaunchArgument(
+        "with_lua", default_value="true", description="是否启动 lua_moveit_node（HTTP Lua 脚本执行节点）"
     )
     use_mock_hardware_arg = DeclareLaunchArgument(
         "use_mock_hardware",
@@ -87,6 +92,27 @@ def generate_launch_description():
         output="screen",
     )
 
+    # ── lua_moveit_node（HTTP Lua 脚本执行节点）──────────────────────────────
+    lua_moveit_node = launch_ros.actions.Node(
+        package="mockway_lua_moveit",
+        executable="lua_moveit_node",
+        name="lua_moveit_node",
+        output="screen",
+        parameters=[
+            moveit_config.robot_description,
+            moveit_config.robot_description_semantic,
+            moveit_config.robot_description_kinematics,
+            moveit_config.joint_limits,
+            {
+                "script_path":    "",
+                "planning_group": "mockway_group",
+                "ee_frame":       "link6",
+                "base_frame":     "base_link",
+            },
+        ],
+        condition=IfCondition(LaunchConfiguration("with_lua")),
+    )
+
     # ── RViz（servo 专用配置）────────────────────────────────────────────────
     rviz_config = os.path.join(
         get_package_share_directory("mockway_moveit_servo"),
@@ -109,9 +135,11 @@ def generate_launch_description():
     return launch.LaunchDescription(
         [
             use_rviz_arg,
+            use_lua_arg,
             use_mock_hardware_arg,
             demo_launch,
             servo_node,
+            lua_moveit_node,
             rviz_node,
         ]
     )
