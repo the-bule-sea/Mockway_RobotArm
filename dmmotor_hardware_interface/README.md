@@ -16,6 +16,8 @@ ROS2 Control hardware interface plugin for DM motors (DM-J4310-2EC and DM4340) s
 
 [generic_system.cpp](https://github.com/ros-controls/ros2_control/blob/jazzy/hardware_interface/src/mock_components/generic_system.cpp)
 
+[franka_hardware](https://github.com/frankarobotics/franka_ros2/blob/jazzy/franka_hardware/include/franka_hardware/franka_hardware_interface.hpp)
+
 ## Features
 
 - Support for DM-J4310-2EC and DM4340 motors
