@@ -2,6 +2,20 @@
 
 ROS2 Control hardware interface plugin for DM motors (DM-J4310-2EC and DM4340) supporting multiple CAN interfaces.
 
+## TODO
+
+**fix:**
+
+与move_group同时启动时，会出现 servo_node 等待 robot state update 的问题。
+
+一直打印提示：`[servo_node]: Waiting to receive robot state update. `
+
+参考：
+
+[generic_system.hpp](https://github.com/ros-controls/ros2_control/blob/jazzy/hardware_interface/include/mock_components/generic_system.hpp)
+
+[generic_system.cpp](https://github.com/ros-controls/ros2_control/blob/jazzy/hardware_interface/src/mock_components/generic_system.cpp)
+
 ## Features
 
 - Support for DM-J4310-2EC and DM4340 motors
