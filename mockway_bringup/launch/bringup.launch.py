@@ -35,6 +35,9 @@ def generate_launch_description():
     use_lua_arg = DeclareLaunchArgument(
         "with_lua", default_value="true", description="是否启动 lua_moveit_node（HTTP Lua 脚本执行节点）"
     )
+    use_rviz_arg = DeclareLaunchArgument(
+        "with_rviz", default_value="false", description="是否启动 RViz2 可视化界面"
+    )
     lua_moveit_node = launch_ros.actions.Node(
         package="mockway_lua_moveit",
         executable="lua_moveit_node",
@@ -86,6 +89,7 @@ def generate_launch_description():
             moveit_config.robot_description,
             moveit_config.robot_description_semantic,
         ],
+        condition=IfCondition(LaunchConfiguration("with_rviz")),
     )
 
     # ros2_control using FakeSystem as hardware
@@ -186,7 +190,8 @@ def generate_launch_description():
             move_group_node,
             use_lua_arg,
             lua_moveit_node,
-            # rviz_node,
+            use_rviz_arg,
+            rviz_node,
             ros2_control_node,
             joint_state_broadcaster_spawner,
             mockway_group_controller_spawner,
