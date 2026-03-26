@@ -1,8 +1,15 @@
-# 牧卫机器人
+<div align="center">
+  <img src="doc/img/icon.png" alt="Logo" width="128px" align="center" />
+
+  # 牧卫机器人
+
+  开源六轴协作机械臂系统，包含机械结构、电路和软件
+  
+</div>
+
+
 
 **中文 | [English](README_EN.md)**
-
-开源六轴协作机械臂系统，包含机械结构、电路和软件
 
 [![robotarm_base](doc/img/cover.jpg)](https://www.bilibili.com/video/BV1AxrbBWEjN/)
 
@@ -104,7 +111,7 @@ colcon build --symlink-install --packages-select mockway_bringup
 
 ```bash
 # 启动 move_group + servo ,仿真：use_mock_hardware:=true
-ros2 launch mockway_bringup mockway.launch.py use_mock_hardware:=true
+ros2 launch mockway_bringup bringup.launch.py use_mock_hardware:=true
 # 浏览器打开前端：http://localhost:8080/
 ```
 
@@ -134,7 +141,7 @@ ros2 launch mockway_bringup mockway.launch.py use_mock_hardware:=true
 python tools/motor_gui/motor_gui.py
 ```
 
-![calibrate_joint](doc/img/calibrate_joint.jpeg)
+<img src="doc/img/calibrate_joint.jpeg" alt="calibrate_joint" style="zoom: 10%;" />
 
 ### 3. 力矩值验证
 
