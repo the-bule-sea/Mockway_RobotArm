@@ -5,9 +5,9 @@ moveit_setup_assistant_config:
   srdf:
     relative_path: config/mockway_description.srdf
   package_settings:
-    author_name: Jelatine
-    author_email: 123@qq.com
-    generated_timestamp: 1768368757
+    author_name: manbo
+    author_email: 1122@qq.com
+    generated_timestamp: 1780473162
   control_xacro:
     command:
       - position

@@ -89,7 +89,7 @@ source ~/mockway_ws/install/setup.bash
 5. 启动程序
 
 ```bash
-ros2 launch moveit_mockway_config demo.launch.py
+ros2 launch moveit_mockway_config demo.launch.py use_mock_hardware:=true
 ```
 
 ![moveit_demo](doc/img/moveit_demo.png)
@@ -109,7 +109,22 @@ cd ~/mockway_ws
 rosdep install --from-paths src/mockway_robotics/ --ignore-src -r -y
 colcon build --symlink-install --packages-select mockway_bringup
 ```
-3. 启动程序
+3. 如果需要浏览器前端，再单独构建`mockway_lua_moveit`的 UI
+
+```bash
+cd ~/mockway_ws/src/mockway_robotics/mockway_lua_moveit/ui
+npm install
+npm run build
+```
+
+或在 colcon 构建时显式开启：
+
+```bash
+cd ~/mockway_ws
+colcon build --symlink-install --packages-select mockway_lua_moveit --cmake-args -DBUILD_FRONTEND=ON
+```
+
+4. 启动程序
 
 ```bash
 # 启动 move_group + servo ,仿真：use_mock_hardware:=true

@@ -7,7 +7,6 @@ moveit_simple_controller_manager:
     - mockway_group_controller
 
   mockway_group_controller:
-    action_ns: follow_joint_trajectory
     type: FollowJointTrajectory
     joints:
       - joint1
@@ -16,10 +15,3 @@ moveit_simple_controller_manager:
       - joint4
       - joint5
       - joint6
-
-# # Trajectory Execution Configuration
-# trajectory_execution:
-#   allowed_execution_duration_scaling: 4.0
-#   allowed_goal_duration_margin: 2.0
-#   execution_duration_monitoring: true
-#   wait_for_trajectory_completion: true
