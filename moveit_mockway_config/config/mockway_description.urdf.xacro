@@ -1,6 +1,9 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="mockway_description">
     <xacro:arg name="initial_positions_file" default="initial_positions.yaml" />
+    
+    <!-- If gazebo -->
+    <xacro:arg name="use_gazebo" default="false" />
 
     <!-- Import mockway_description urdf file -->
     <xacro:include filename="$(find mockway_description)/urdf/mockway_description.urdf" />
@@ -9,6 +12,24 @@
     <xacro:include filename="mockway_description.ros2_control.xacro" />
 
 
-    <xacro:mockway_description_ros2_control name="FakeSystem" initial_positions_file="$(arg initial_positions_file)"/>
+    <xacro:mockway_description_ros2_control name="FakeSystem" initial_positions_file="$(arg initial_positions_file)" use_gazebo="$(arg use_gazebo)"/>
+
+    <xacro:if value="$(arg use_gazebo)">
+        <!-- Gazebo 中固定底座，防止 base_link 作为自由刚体受重力掉落或倾倒。 -->
+        <link name="world"/>
+        <joint name="world_fixed" type="fixed">
+            <parent link="world"/>
+            <child link="base_link"/>
+            <origin xyz="0 0 0.02" rpy="0 0 0"/>
+        </joint>
+
+        <gazebo>
+            <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+                <parameters>
+                    $(find moveit_mockway_config)/config/ros2_controllers.yaml
+                </parameters>
+            </plugin>
+        </gazebo>
+    </xacro:if>
 
 </robot>
