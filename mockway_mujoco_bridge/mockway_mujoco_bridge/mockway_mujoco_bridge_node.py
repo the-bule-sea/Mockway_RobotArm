@@ -26,7 +26,10 @@ class MockwayMujocoBridge(Node):
         
         # 声明参数
         self.declare_parameter('model_path', '')
+        self.declare_parameter('publish_clock', True)
         model_path = self.get_parameter('model_path').get_parameter_value().string_value
+        publish_clock_value = self.get_parameter('publish_clock').value
+        self.publish_clock = str(publish_clock_value).lower() in ('true', '1', 'yes', 'on')
         
         self.joint_names = ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6']
         self.current_qpos = [0.0] * 6
@@ -213,18 +216,22 @@ class MockwayMujocoBridge(Node):
         return result
 
     def timer_callback(self):
-        sim_time = self.data.time if self.data is not None else time.monotonic() - self.wall_start_time
-        sec = int(sim_time)
-        nanosec = int((sim_time - sec) * 1e9)
+        if self.publish_clock:
+            sim_time = self.data.time if self.data is not None else time.monotonic() - self.wall_start_time
+            sec = int(sim_time)
+            nanosec = int((sim_time - sec) * 1e9)
 
-        clock_msg = Clock()
-        clock_msg.clock.sec = sec
-        clock_msg.clock.nanosec = nanosec
-        self.clock_pub.publish(clock_msg)
+            clock_msg = Clock()
+            clock_msg.clock.sec = sec
+            clock_msg.clock.nanosec = nanosec
+            self.clock_pub.publish(clock_msg)
+            stamp = clock_msg.clock
+        else:
+            stamp = self.get_clock().now().to_msg()
 
         # 发布 Joint States
         msg = JointState()
-        msg.header.stamp = clock_msg.clock
+        msg.header.stamp = stamp
         msg.name = self.joint_names
         with self.state_lock:
             msg.position = list(self.current_qpos)

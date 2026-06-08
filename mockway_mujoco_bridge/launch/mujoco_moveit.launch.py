@@ -33,8 +33,10 @@ def generate_launch_description():
         executable='mockway_mujoco_bridge_node',
         output='screen',
         parameters=[
-            # The bridge publishes /clock, so it must use wall time for its own timers.
+            # The bridge always uses wall time for its own timers. When the rest
+            # of the launch uses sim time, the bridge publishes /clock for them.
             {'use_sim_time': False},
+            {'publish_clock': use_sim_time},
             {'model_path': os.path.join(description_share, 'urdf', 'mockway_description.urdf')}
         ],
     )
