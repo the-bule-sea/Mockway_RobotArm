@@ -91,7 +91,11 @@ source ~/mockway_ws/install/setup.bash
 ```bash
 ros2 launch moveit_mockway_config demo.launch.py use_mock_hardware:=true
 ```
+**moveit, MujoCo联调**
+```
+ros2 launch mockway_mujoco_bridge mujoco_moveit launch.py use_sim_time:=false
 
+```
 ![moveit_demo](doc/img/moveit_demo.png)
 
 ### 🖥️ 完整程序
